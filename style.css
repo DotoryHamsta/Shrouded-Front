@@ -664,3 +664,132 @@ body{
 .sf-recon-btn:hover {
   background: color-mix(in srgb, var(--accent) 15%, var(--panel2));
 }
+
+/* Side panel tabs */
+.sf-panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 8px 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sf-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Unit roster cards */
+.sf-unit-card {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sf-unit-card:hover {
+  border-color: var(--accent);
+}
+
+.sf-unit-card-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel2));
+}
+
+.sf-unit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sf-unit-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.sf-unit-lvl {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sf-unit-meta {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.sf-unit-loc {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-unit-activity {
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.sf-act-warn { color: #ffa078; }
+.sf-act-recon, .sf-act-setup { color: #aad2ff; }
+.sf-act-move { color: #c8d6e8; }
+.sf-act-idle { color: var(--muted); }
+
+.sf-unit-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.sf-unit-bar-label {
+  width: 30px;
+  flex-shrink: 0;
+}
+
+.sf-unit-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sf-unit-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.sf-unit-bar-fill.hp { background: #6fb0ff; }
+.sf-unit-bar-fill.food { background: #8fd49a; }
+
+.sf-unit-bar-value {
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}

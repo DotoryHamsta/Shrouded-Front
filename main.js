@@ -1,8 +1,9 @@
 import { createDefaultSimulation } from './game/simulation.js?v=20';
 import { formatTime } from './game/report.js?v=20';
-import { createMapView } from './ui/map.js?v=20';
-import { createDetailPanel } from './ui/details.js?v=20';
+import { createMapView } from './ui/map.js?v=21';
+import { createDetailPanel } from './ui/details.js?v=21';
 import { createOperationsBoard } from './ui/operations.js?v=20';
+import { createUnitRoster } from './ui/roster.js?v=21';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -40,8 +41,12 @@ root.innerHTML = `
 
       <aside class="sidePanel">
         <section class="panel">
-          <h2>구역 상세</h2>
+          <div class="sf-panel-tabs" id="panelTabs">
+            <button class="sf-tab active" type="button" data-view="sector">구역 상세</button>
+            <button class="sf-tab" type="button" data-view="unit">유닛</button>
+          </div>
           <div class="details" id="detailMount"></div>
+          <div class="details hidden" id="rosterMount"></div>
         </section>
       </aside>
     </main>
@@ -67,11 +72,14 @@ let selectedSectorId = state.units.find((unit) => unit.name === 'Alpha Recon')?.
   ?? state.sectors[0]?.id
   ?? null;
 let hoveredSectorId = null;
+let selectedUnitId = null;
+let panelView = 'sector';
 let lastFrameTime = performance.now();
 let tickAccumulator = 0;
 
 const mainMapMount = document.getElementById('mainMapMount');
 const detailMount = document.getElementById('detailMount');
+const rosterMount = document.getElementById('rosterMount');
 const operationsMount = document.getElementById('operationsMount');
 const operationsModal = document.getElementById('operationsModal');
 const pauseButton = document.getElementById('pauseButton');
@@ -81,6 +89,7 @@ const closeOperationsButton = document.getElementById('closeOperationsButton');
 const timeReadout = document.getElementById('timeReadout');
 const mapStatus = document.getElementById('mapStatus');
 const alertStatus = document.getElementById('alertStatus');
+const panelTabs = [...document.querySelectorAll('.sf-tab')];
 
 function buildSectorUnits(units = []) {
   return units.reduce((acc, unit) => {
@@ -103,6 +112,7 @@ function getViewState() {
     ...state,
     selectedSectorId,
     hoveredSectorId,
+    selectedUnitId,
     sectorsById: buildSectorsById(state.sectors),
     sectorUnits: buildSectorUnits(state.units)
   };
@@ -131,11 +141,18 @@ const operationsBoard = createOperationsBoard({
   getState: () => state
 });
 
+const unitRoster = createUnitRoster({
+  mount: rosterMount,
+  getState: () => state,
+  onSelect: (unitId) => selectUnit(unitId)
+});
+
 const mapView = createMapView({
   mount: mainMapMount,
   stateProvider: getViewState,
   onSectorSelect: (sector) => {
     selectedSectorId = sector.id;
+    selectedUnitId = null;
     renderAll();
   },
   onSectorHover: (sector) => {
@@ -146,10 +163,28 @@ const mapView = createMapView({
   },
   onOpenSectorDetails: (sector) => {
     selectedSectorId = sector.id;
+    selectedUnitId = null;
     renderAll();
   },
+  onUnitSelect: (unit) => selectUnit(unit.id),
   onOpenOperations: openOperations
 });
+
+function selectUnit(unitId) {
+  const unit = state.units.find((u) => u.id === unitId);
+  if (!unit) return;
+  selectedUnitId = unitId;
+  if (unit.sectorId) selectedSectorId = unit.sectorId;
+  setPanelView('unit');
+  renderAll();
+}
+
+function setPanelView(view) {
+  panelView = view === 'unit' ? 'unit' : 'sector';
+  panelTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.view === panelView));
+  detailMount.classList.toggle('hidden', panelView !== 'sector');
+  rosterMount.classList.toggle('hidden', panelView !== 'unit');
+}
 
 function setSpeed(speed) {
   simulation.setSpeed(speed);
@@ -206,6 +241,9 @@ function renderAll() {
     detailPanel.renderEmpty();
   }
 
+  unitRoster.setSelected(selectedUnitId);
+  unitRoster.render();
+
   if (isOperationsOpen()) {
     operationsBoard.render();
   }
@@ -242,6 +280,13 @@ operationsModal.addEventListener('click', (event) => {
 
 for (const button of speedButtons) {
   button.addEventListener('click', () => setSpeed(Number(button.dataset.speed)));
+}
+
+for (const tab of panelTabs) {
+  tab.addEventListener('click', () => {
+    setPanelView(tab.dataset.view);
+    renderAll();
+  });
 }
 
 mapView.init();

@@ -2,7 +2,8 @@
 // SVG map renderer for Shrouded Front.
 // Renders the full sector map from data/map.js.
 
-import { MAP, getSectorById } from '../data/map.js?v=20';
+import { MAP, getSectorById } from '../data/map.js?v=21';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=21';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -48,14 +49,48 @@ function getStatusText(sector) {
   return '상태 미정';
 }
 
-function getOverlayText(sector, state = {}) {
-  const sectorUnits = state.sectorUnits?.[sector.id] ?? [];
-  if (sectorUnits.length > 0) {
-    const statuses = [...new Set(sectorUnits.map((unit) => unit.status ?? 'active'))];
-    return `${sectorUnits.length} 유닛 / ${statuses.slice(0, 2).join(', ')}`;
-  }
-
+// Units are now drawn as map tokens, so the per-sector text overlay no longer
+// duplicates the unit count.
+function getOverlayText() {
   return '';
+}
+
+// Draws a NATO-style symbol inside a counter rect centered at (0,0) of the token group.
+// width/height describe the inner symbol box.
+function appendSymbol(group, kind, w, h) {
+  const halfW = w / 2;
+  const halfH = h / 2;
+  const stroke = 'rgba(235,242,250,0.96)';
+
+  if (kind === 'infantry') {
+    // Crossed diagonals (X).
+    const l1 = createSvgEl('line');
+    l1.setAttribute('x1', `${-halfW}`); l1.setAttribute('y1', `${-halfH}`);
+    l1.setAttribute('x2', `${halfW}`); l1.setAttribute('y2', `${halfH}`);
+    const l2 = createSvgEl('line');
+    l2.setAttribute('x1', `${halfW}`); l2.setAttribute('y1', `${-halfH}`);
+    l2.setAttribute('x2', `${-halfW}`); l2.setAttribute('y2', `${halfH}`);
+    for (const l of [l1, l2]) {
+      l.setAttribute('stroke', stroke);
+      l.setAttribute('stroke-width', '1.6');
+      group.appendChild(l);
+    }
+  } else if (kind === 'recon') {
+    // Single diagonal slash (cavalry / recon).
+    const l = createSvgEl('line');
+    l.setAttribute('x1', `${-halfW}`); l.setAttribute('y1', `${halfH}`);
+    l.setAttribute('x2', `${halfW}`); l.setAttribute('y2', `${-halfH}`);
+    l.setAttribute('stroke', stroke);
+    l.setAttribute('stroke-width', '1.8');
+    group.appendChild(l);
+  } else if (kind === 'artillery') {
+    // Filled dot.
+    const c = createSvgEl('circle');
+    c.setAttribute('cx', '0'); c.setAttribute('cy', '0');
+    c.setAttribute('r', `${Math.min(halfW, halfH) * 0.5}`);
+    c.setAttribute('fill', stroke);
+    group.appendChild(c);
+  }
 }
 
 export class SectorMapView {
@@ -66,7 +101,8 @@ export class SectorMapView {
     onSectorHover = () => {},
     onSectorLeave = () => {},
     onOpenOperations = () => {},
-    onOpenSectorDetails = () => {}
+    onOpenSectorDetails = () => {},
+    onUnitSelect = () => {}
   } = {}) {
     if (!mount) throw new Error('SectorMapView requires a mount element.');
 
@@ -77,13 +113,16 @@ export class SectorMapView {
     this.onSectorLeave = onSectorLeave;
     this.onOpenOperations = onOpenOperations;
     this.onOpenSectorDetails = onOpenSectorDetails;
+    this.onUnitSelect = onUnitSelect;
 
     this.svg = null;
     this.selectedSectorId = null;
     this.hoveredSectorId = null;
+    this.selectedUnitId = null;
     this.sectorElements = new Map();
     this.labelElements = new Map();
     this.pinElements = new Map();
+    this.unitLayer = null;
   }
 
   init() {
@@ -135,12 +174,14 @@ export class SectorMapView {
 
     const sectorLayer = createSvgEl('g');
     const labelLayer = createSvgEl('g');
+    const unitLayer = createSvgEl('g');
     const pinLayer = createSvgEl('g');
 
-    svg.append(defs, river, riverFoam, sectorLayer, labelLayer, pinLayer);
+    svg.append(defs, river, riverFoam, sectorLayer, labelLayer, unitLayer, pinLayer);
     shell.appendChild(svg);
     this.mount.appendChild(shell);
     this.svg = svg;
+    this.unitLayer = unitLayer;
 
     this._buildSectors(sectorLayer);
     this._buildOverlays(labelLayer, pinLayer);
@@ -266,6 +307,7 @@ export class SectorMapView {
     const state = partialState ?? this.stateProvider() ?? {};
     this.selectedSectorId = state.selectedSectorId ?? this.selectedSectorId;
     this.hoveredSectorId = state.hoveredSectorId ?? this.hoveredSectorId;
+    if ('selectedUnitId' in state) this.selectedUnitId = state.selectedUnitId;
 
     for (const rawSector of MAP.sectors) {
       const sector = state.sectorsById?.[rawSector.id] ?? getSectorById(rawSector.id) ?? rawSector;
@@ -298,7 +340,131 @@ export class SectorMapView {
       }
     }
 
+    this._renderUnitTokens(state);
+
     return this;
+  }
+
+  _renderUnitTokens(state) {
+    if (!this.unitLayer) return;
+    this.unitLayer.innerHTML = '';
+
+    const sectorUnits = state.sectorUnits ?? {};
+    const sectorsById = state.sectorsById ?? {};
+
+    for (const [sectorId, units] of Object.entries(sectorUnits)) {
+      const live = (units || []).filter((u) => u && u.status !== 'dead');
+      if (live.length === 0) continue;
+
+      const sector = sectorsById[sectorId] ?? getSectorById(sectorId);
+      const center = centerOf(sector);
+
+      const tokenW = 46;
+      const tokenH = 30;
+      const gap = 10;
+      const totalW = live.length * tokenW + (live.length - 1) * gap;
+      const startX = center.x - totalW / 2 + tokenW / 2;
+      const baseY = center.y + 38;
+
+      live.forEach((unit, i) => {
+        const px = startX + i * (tokenW + gap);
+        this.unitLayer.appendChild(this._buildToken(unit, px, baseY, tokenW, tokenH));
+      });
+    }
+  }
+
+  _buildToken(unit, px, py, w, h) {
+    const tone = unitTone(unit);
+    const selected = this.selectedUnitId === unit.id;
+    const kind = unitSymbolKind(unit.type);
+
+    const group = createSvgEl('g');
+    group.dataset.unitId = unit.id;
+    group.style.cursor = 'pointer';
+    group.setAttribute('transform', `translate(${px}, ${py})`);
+
+    // Counter body.
+    const rect = createSvgEl('rect');
+    rect.setAttribute('x', `${-w / 2}`);
+    rect.setAttribute('y', `${-h / 2}`);
+    rect.setAttribute('width', `${w}`);
+    rect.setAttribute('height', `${h}`);
+    rect.setAttribute('rx', '4');
+    rect.setAttribute('fill', tone.fill);
+    rect.setAttribute('stroke', selected ? 'rgba(255,255,255,0.98)' : tone.stroke);
+    rect.setAttribute('stroke-width', selected ? '3' : '1.8');
+    if (selected) rect.setAttribute('filter', 'drop-shadow(0 0 6px rgba(143,191,255,0.8))');
+    group.appendChild(rect);
+
+    // NATO symbol inside the counter.
+    appendSymbol(group, kind, w - 16, h - 12);
+
+    // Level badge (top-right).
+    const badge = createSvgEl('circle');
+    badge.setAttribute('cx', `${w / 2 - 4}`);
+    badge.setAttribute('cy', `${-h / 2 + 4}`);
+    badge.setAttribute('r', '7');
+    badge.setAttribute('fill', 'rgba(15,19,25,0.95)');
+    badge.setAttribute('stroke', tone.stroke);
+    badge.setAttribute('stroke-width', '1');
+    group.appendChild(badge);
+
+    const lvl = createSvgEl('text');
+    lvl.setAttribute('x', `${w / 2 - 4}`);
+    lvl.setAttribute('y', `${-h / 2 + 7.5}`);
+    lvl.setAttribute('text-anchor', 'middle');
+    lvl.setAttribute('fill', 'rgba(240,245,250,0.96)');
+    lvl.setAttribute('font-size', '9');
+    lvl.setAttribute('font-weight', '800');
+    lvl.setAttribute('pointer-events', 'none');
+    lvl.textContent = String(unit.level ?? 1);
+    group.appendChild(lvl);
+
+    // Warning flag for degraded states.
+    if (tone.warn) {
+      const warn = createSvgEl('circle');
+      warn.setAttribute('cx', `${-w / 2 + 4}`);
+      warn.setAttribute('cy', `${-h / 2 + 4}`);
+      warn.setAttribute('r', '4');
+      warn.setAttribute('fill', tone.stroke);
+      group.appendChild(warn);
+    }
+
+    // Unit name above the token.
+    const name = createSvgEl('text');
+    name.setAttribute('x', '0');
+    name.setAttribute('y', `${-h / 2 - 6}`);
+    name.setAttribute('text-anchor', 'middle');
+    name.setAttribute('fill', 'rgba(230,238,248,0.92)');
+    name.setAttribute('font-size', '11');
+    name.setAttribute('font-weight', '700');
+    name.setAttribute('pointer-events', 'none');
+    name.textContent = escapeText(unit.name || unit.label || '');
+    group.appendChild(name);
+
+    // Activity text below the token.
+    const activity = describeUnitActivity(unit);
+    const act = createSvgEl('text');
+    act.setAttribute('x', '0');
+    act.setAttribute('y', `${h / 2 + 15}`);
+    act.setAttribute('text-anchor', 'middle');
+    act.setAttribute('fill', activity.tone === 'warn'
+      ? 'rgba(255,160,120,0.95)'
+      : activity.tone === 'recon' || activity.tone === 'setup'
+        ? 'rgba(170,210,255,0.95)'
+        : 'rgba(190,202,216,0.85)');
+    act.setAttribute('font-size', '10.5');
+    act.setAttribute('pointer-events', 'none');
+    act.textContent = activity.text;
+    group.appendChild(act);
+
+    group.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.selectedUnitId = unit.id;
+      this.onUnitSelect(unit);
+    });
+
+    return group;
   }
 
   destroy() {
