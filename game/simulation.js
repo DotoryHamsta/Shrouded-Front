@@ -4,16 +4,16 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js';
-import { Sector } from './sector.js';
-import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js';
+import { MAP, getSectorById } from '../data/map.js?v=20';
+import { Sector } from './sector.js?v=20';
+import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=20';
 import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
   isUnitAlive,
   unitLabel
-} from './unit.js';
+} from './unit.js?v=20';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));

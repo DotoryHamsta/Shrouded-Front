@@ -4,7 +4,7 @@
 // This module wraps raw map data into a game-friendly object.
 // It does not touch the DOM.
 
-import { MAP, getSectorById } from '../data/map.js';
+import { MAP, getSectorById } from '../data/map.js?v=20';
 
 export class Sector {
   constructor(raw) {

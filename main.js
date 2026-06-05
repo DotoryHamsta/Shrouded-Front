@@ -1,8 +1,8 @@
-import { createDefaultSimulation } from './game/simulation.js';
-import { formatTime } from './game/report.js';
-import { createMapView } from './ui/map.js';
-import { createDetailPanel } from './ui/details.js';
-import { createOperationsBoard } from './ui/operations.js';
+import { createDefaultSimulation } from './game/simulation.js?v=20';
+import { formatTime } from './game/report.js?v=20';
+import { createMapView } from './ui/map.js?v=20';
+import { createDetailPanel } from './ui/details.js?v=20';
+import { createOperationsBoard } from './ui/operations.js?v=20';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
