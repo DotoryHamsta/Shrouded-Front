@@ -10,8 +10,21 @@
     LOADING...
   </div>
 
-  <script>
-    document.getElementById('mapMount').innerText = 'INLINE WORKS';
-  </script>
+  <script type="module">
+  const mount = document.getElementById('mapMount');
+  mount.textContent = 'LOADING MAIN...';
+
+  import('./main.js?v=' + Date.now())
+    .then(() => {
+      mount.textContent = 'MAIN IMPORT OK';
+    })
+    .catch((err) => {
+      mount.innerHTML = `
+        <pre style="white-space:pre-wrap;color:#ff8a8a;padding:24px;font-size:18px;">
+${err?.stack || err?.message || String(err)}
+        </pre>
+      `;
+    });
+</script>
 </body>
 </html>
