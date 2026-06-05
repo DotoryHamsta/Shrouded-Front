@@ -1,65 +1,28 @@
-const mount = document.getElementById("mapMount");
+const mount = document.getElementById('mapMount');
 
 document.body.insertAdjacentHTML(
-  "afterbegin",
-  `
-  <div
-    style="
-      position:fixed;
-      top:0;
-      left:0;
-      z-index:99999;
-      background:yellow;
-      color:black;
-      padding:10px;
-      font-size:24px;
-    "
-  >
-    MAIN OK
-  </div>
-`
+  'afterbegin',
+  '<div style="position:fixed;top:0;left:0;z-index:99999;background:yellow;color:black;padding:10px;font-size:24px;">MAIN OK</div>'
 );
 
-mount.innerHTML = `
-  <div
-    style="
-      color:white;
-      padding:30px;
-      font-size:32px;
-    "
-  >
-    IMPORT TEST
-  </div>
-`;
+if (!mount) {
+  document.body.innerHTML = '<div style="padding:24px;color:red;">NO MOUNT</div>';
+  throw new Error('No mapMount element found.');
+}
 
-import("./ui/map.js")
-  .then(() => {
+mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">IMPORTING ui/map.js...</div>';
 
-    mount.innerHTML += `
-      <div
-        style="
-          color:#7ef0b1;
-          padding:20px;
-          font-size:24px;
-        "
-      >
-        MAP.JS IMPORT OK
-      </div>
-    `;
-
-  })
-  .catch(err => {
-
+import('./ui/map.js?v=' + Date.now())
+  .then((mod) => {
     mount.innerHTML = `
-      <pre
-        style="
-          color:#ff8a8a;
-          padding:20px;
-          white-space:pre-wrap;
-        "
-      >
-${err.stack || err.message || String(err)}
+      <div style="padding:24px;font-size:32px;color:white;">ui/map.js IMPORT OK</div>
+      <pre style="padding:24px;color:#7fe6a0;">exports: ${Object.keys(mod).join(', ')}</pre>
+    `;
+  })
+  .catch((err) => {
+    mount.innerHTML = `
+      <pre style="white-space:pre-wrap;color:#ff8a8a;padding:24px;font-size:18px;">
+${err?.stack || err?.message || String(err)}
       </pre>
     `;
-
   });
