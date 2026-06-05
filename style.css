@@ -74,7 +74,13 @@ body{
 
 .controls{
   display:flex;
+  align-items:center;
   gap:8px;
+}
+
+.speedGroup{
+  display:flex;
+  gap:6px;
 }
 
 .btn{
@@ -352,6 +358,18 @@ body{
   padding:16px;
 }
 
+.sf-ops-shell{
+  min-width:920px;
+}
+
+.sf-ops-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+
+  margin-bottom:14px;
+}
+
 .sf-ops-title{
   font-size:20px;
   font-weight:800;
@@ -360,6 +378,26 @@ body{
 .sf-ops-subtitle{
   color:var(--muted);
   font-size:13px;
+}
+
+.sf-ops-status{
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:7px 10px;
+  color:#dce8f7;
+  background:#1d2531;
+  font-size:12px;
+  font-weight:700;
+}
+
+.sf-ops-status.running{
+  border-color:rgba(127,230,160,.45);
+  color:#9ee6b6;
+}
+
+.sf-ops-status.paused{
+  border-color:rgba(255,196,87,.45);
+  color:#ffd27a;
 }
 
 .sf-ops-summary-grid{
@@ -371,6 +409,25 @@ body{
   gap:10px;
 
   margin-bottom:16px;
+}
+
+.sf-ops-section{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  background:#171d26;
+}
+
+.sf-ops-section-title{
+  font-size:14px;
+  font-weight:800;
+  margin-bottom:8px;
+}
+
+.sf-ops-text{
+  color:#d7e2f1;
+  font-size:13px;
+  line-height:1.5;
 }
 
 .sf-op-summary-card{
@@ -417,6 +474,10 @@ body{
   padding:12px;
 }
 
+.sf-ops-table-wrap{
+  overflow:auto;
+}
+
 .sf-ops-panel-title{
   font-size:16px;
   font-weight:800;
@@ -455,6 +516,11 @@ body{
   margin-bottom:10px;
 }
 
+.sf-op-report-badge{
+  color:var(--muted);
+  font-size:12px;
+}
+
 .sf-op-report-head{
   display:flex;
   justify-content:space-between;
@@ -486,6 +552,51 @@ body{
 .sf-empty-row{
   color:var(--muted);
   text-align:center;
+}
+
+.sf-empty{
+  color:var(--muted);
+}
+
+.sf-recon-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.sf-recon-row{
+  border:1px solid rgba(48,65,85,.72);
+  border-radius:12px;
+  padding:10px;
+  background:#141b24;
+}
+
+.sf-recon-row-head{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-size:13px;
+  font-weight:800;
+}
+
+.sf-recon-meter{
+  height:7px;
+  margin-top:8px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#253041;
+}
+
+.sf-recon-meter-fill{
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#74d39a,#8fbfff);
+}
+
+.sf-recon-summary{
+  margin-top:7px;
+  color:var(--muted);
+  font-size:12px;
 }
 
 /* ---------- MOBILE ---------- */

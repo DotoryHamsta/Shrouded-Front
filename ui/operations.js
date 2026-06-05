@@ -45,6 +45,7 @@ function unitRow(unit) {
   const status = unit.status || 'active';
   const ready = unit.readiness ?? null;
   const comm = unit.commConnected ? '연결' : '두절';
+  const recon = Number.isFinite(unit.reconProgress) ? `${Math.round(unit.reconProgress)}%` : '0%';
   return `
     <tr>
       <td>${escapeHtml(name)}</td>
@@ -57,6 +58,7 @@ function unitRow(unit) {
       <td>${escapeHtml(status)}</td>
       <td>${escapeHtml(comm)}</td>
       <td>${ready !== null ? escapeHtml(String(ready)) : '-'}</td>
+      <td>${escapeHtml(recon)}</td>
     </tr>
   `;
 }
@@ -103,6 +105,25 @@ function sectorRow(sector) {
   `;
 }
 
+function reconProgressRow(sector) {
+  const code = sector.code || sector.id;
+  const recon = Number.isFinite(sector.reconProgress) ? Math.round(sector.reconProgress) : 0;
+  const summary = sector.reportSummary || '미탐색';
+
+  return `
+    <div class="sf-recon-row">
+      <div class="sf-recon-row-head">
+        <span>${escapeHtml(code)}</span>
+        <span>${escapeHtml(`${recon}%`)}</span>
+      </div>
+      <div class="sf-recon-meter">
+        <div class="sf-recon-meter-fill" style="width:${Math.max(0, Math.min(100, recon))}%"></div>
+      </div>
+      <div class="sf-recon-summary">${escapeHtml(summary)}</div>
+    </div>
+  `;
+}
+
 function summaryCard(label, value) {
   return `
     <div class="sf-op-summary-card">
@@ -136,6 +157,7 @@ export class OperationsBoard {
     const alertSectors = sectors.filter((s) => s.alert || s.enemySummary);
     const revealedSectors = sectors.filter((s) => s.control === 'revealed' || s.control === 'visible');
     const hiddenSectors = sectors.filter((s) => s.control === 'unseen');
+    const reconUnits = units.filter((u) => u.type === 'recon');
     const reconAverage = sectors.length > 0
       ? Math.round(sectors.reduce((sum, s) => sum + (Number.isFinite(s.reconProgress) ? s.reconProgress : 0), 0) / sectors.length)
       : 0;
@@ -166,7 +188,9 @@ export class OperationsBoard {
         <div class="sf-ops-section">
           <div class="sf-ops-section-title">현재 작전</div>
           <div class="sf-ops-text">
-            플레이어는 메인 지도에서 최소 정보만 본다. 이곳에서는 전장의 전체 수치를 모두 확인한다.
+            ${reconUnits.length > 0
+              ? reconUnits.map((unit) => `${escapeHtml(unit.name || unitLabel(unit))} · ${escapeHtml(unit.sectorId || '-')} · ${escapeHtml(Math.round(unit.reconProgress || 0))}%`).join('<br>')
+              : '진행 중인 정찰 없음'}
           </div>
         </div>
 
@@ -187,10 +211,11 @@ export class OperationsBoard {
                     <th>상태</th>
                     <th>통신</th>
                     <th>준비도</th>
+                    <th>정찰</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="10" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
+                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="11" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
                 </tbody>
               </table>
             </div>
@@ -228,20 +253,9 @@ export class OperationsBoard {
           </section>
 
           <section class="sf-ops-panel">
-            <div class="sf-ops-panel-title">지휘 메모</div>
-            <div class="sf-ops-note-list">
-              <div class="sf-ops-note">
-                <div class="sf-ops-note-title">관측 우선순위</div>
-                <div class="sf-ops-note-body">능선과 강 교차로, 그리고 숲 진입부를 우선 확보한다.</div>
-              </div>
-              <div class="sf-ops-note">
-                <div class="sf-ops-note-title">정찰 규칙</div>
-                <div class="sf-ops-note-body">정찰은 즉시 시야 확보가 아니라, 시간이 쌓여 정보가 정제되는 과정이다.</div>
-              </div>
-              <div class="sf-ops-note">
-                <div class="sf-ops-note-title">보급 규칙</div>
-                <div class="sf-ops-note-body">식량은 유닛의 작전 반경이며, 고갈되면 자동 복귀가 우선된다.</div>
-              </div>
+            <div class="sf-ops-panel-title">정찰 진행도</div>
+            <div class="sf-recon-list">
+              ${sectors.length > 0 ? sectors.map(reconProgressRow).join('') : '<div class="sf-empty-row">정찰 정보 없음</div>'}
             </div>
           </section>
         </div>

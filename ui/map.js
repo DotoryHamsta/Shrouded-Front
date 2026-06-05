@@ -39,7 +39,9 @@ function centerOf(sector) {
 }
 
 function getStatusText(sector) {
-  if (sector.alert || sector.alertLabel || sector.enemySummary) return '알림';
+  if (sector.alert || sector.alertLabel || sector.enemySummary) return '보고 있음';
+  if (sector.reconProgress >= 80) return '보고 확보';
+  if (sector.reconProgress > 0) return '정찰중';
   if (sector.control === 'revealed') return '관측중';
   if (sector.control === 'visible') return '가시권';
   if (sector.control === 'unseen') return '미탐색';
@@ -49,22 +51,11 @@ function getStatusText(sector) {
 function getOverlayText(sector, state = {}) {
   const sectorUnits = state.sectorUnits?.[sector.id] ?? [];
   if (sectorUnits.length > 0) {
-    const unit = sectorUnits[0];
-    const name = unit.label ?? unit.name ?? '유닛';
-    const count = unit.count ?? 1;
-    const status = unit.status ?? '정찰중';
-    return `${name} ${count}명 ${status}`;
+    const statuses = [...new Set(sectorUnits.map((unit) => unit.status ?? 'active'))];
+    return `${sectorUnits.length} 유닛 / ${statuses.slice(0, 2).join(', ')}`;
   }
 
-  if (sector.enemySummary) {
-    const enemy = sector.enemySummary;
-    const type = enemy.type ? `적 ${enemy.type}` : '적 전력';
-    const size = typeof enemy.size === 'number' ? `${enemy.size}명` : '?';
-    return `${type} ${size}`;
-  }
-
-  if (sector.control === 'unseen') return '미탐색';
-  return sector.reportSummary || '아군 영향권';
+  return '';
 }
 
 export class SectorMapView {

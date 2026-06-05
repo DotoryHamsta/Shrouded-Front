@@ -270,7 +270,8 @@ export class Unit {
       ammo: this.ammo,
       status: this.status,
       commConnected: this.commConnected,
-      reconProgress: this.reconProgress
+      reconProgress: this.reconProgress,
+      readiness: this.readiness
     };
   }
 
@@ -519,6 +520,7 @@ export class Unit {
       morale: this.morale,
       carryLoad: this.carryLoad,
       reconProgress: this.reconProgress,
+      readiness: this.readiness,
       commConnected: this.commConnected,
       lastSeenTurn: this.lastSeenTurn,
       tags: [...this.tags],

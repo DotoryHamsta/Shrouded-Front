@@ -87,15 +87,18 @@ export class DetailPanel {
   }
 
   renderSector(sectorLike, options = {}) {
+    const state = this.getState() || {};
     const sectorId = typeof sectorLike === 'string' ? sectorLike : sectorLike?.id;
-    const sector = sectorId ? (getSectorById(sectorId) || sectorLike) : sectorLike;
+    const stateSector = sectorId && Array.isArray(state.sectors)
+      ? state.sectors.find((item) => item.id === sectorId)
+      : null;
+    const sector = stateSector || (typeof sectorLike === 'object' ? sectorLike : getSectorById(sectorId));
 
     if (!sector) {
       this.renderEmpty();
       return;
     }
 
-    const state = this.getState() || {};
     const sectorReports = Array.isArray(state.reports)
       ? state.reports.filter((report) => report.sectorId === sector.id)
       : [];
@@ -106,7 +109,7 @@ export class DetailPanel {
     const friendlySummary = sector.friendlySummary
       ? formatFriendlySummary(Array.isArray(sector.friendlySummary) ? sector.friendlySummary : [sector.friendlySummary])
       : (sectorUnits.length > 0
-        ? sectorUnits.map((unit) => `${unit.name || unitLabel(unit)} / ${unitLabel(unit)} / ${Math.max(0, Math.round(unit.health ?? 0))}`).join('<br>')
+        ? sectorUnits.map((unit) => `${escapeHtml(unit.name || unitLabel(unit))} / ${escapeHtml(unitLabel(unit))} / ${escapeHtml(unit.status || 'active')} / HP ${escapeHtml(Math.max(0, Math.round(unit.health ?? 0)))}`).join('<br>')
         : '없음');
 
     const enemySummary = formatEnemySummary(sector.enemySummary);
@@ -235,4 +238,3 @@ export class DetailPanel {
 export function createDetailPanel(options = {}) {
   return new DetailPanel(options);
 }
-

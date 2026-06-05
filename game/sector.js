@@ -34,6 +34,7 @@ export class Sector {
     this.control = raw.control ?? 'unseen';
     this.friendlySummary = raw.friendlySummary ?? null;
     this.enemySummary = raw.enemySummary ? { ...raw.enemySummary } : null;
+    this.hiddenEnemySummary = raw.hiddenEnemySummary ? { ...raw.hiddenEnemySummary } : null;
     this.reportSummary = raw.reportSummary ?? '미탐색';
     this.occupancy = Array.isArray(raw.occupancy) ? [...raw.occupancy] : [];
 
@@ -79,6 +80,7 @@ export class Sector {
       control: this.control,
       friendlySummary: this.friendlySummary ? { ...this.friendlySummary } : null,
       enemySummary: this.enemySummary ? { ...this.enemySummary } : null,
+      hiddenEnemySummary: this.hiddenEnemySummary ? { ...this.hiddenEnemySummary } : null,
       reportSummary: this.reportSummary,
       occupancy: [...this.occupancy],
       lastKnownTurn: this.lastKnownTurn,
