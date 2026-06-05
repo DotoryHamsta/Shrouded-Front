@@ -642,7 +642,11 @@ export class Simulation {
       const connected = unit.commConnected;
 
       if (connected && unit.command.includes('정찰')) {
-        this._advanceReconProgress(unit, sector);
+        if (unit.targetSectorId && unit.sectorId !== unit.targetSectorId) {
+          this._moveUnitTowards(unit, unit.targetSectorId);
+        } else {
+          this._advanceReconProgress(unit, sector);
+        }
       } else if (!connected) {
         unit.setStatus(UNIT_STATUS.DISCONNECTED);
         const fallback = this._nearestSupplySectorId(unit.sectorId) ?? unit.originSectorId ?? unit.sectorId;
@@ -801,6 +805,23 @@ export class Simulation {
     return orderRecord;
   }
 
+  issueReconOrder(unitId, targetSectorId) {
+    const unit = this.getUnit(unitId);
+    if (!unit || !unit.isAlive) return null;
+
+    const currentSector = this.getSector(unit.sectorId);
+    const validTargets = [unit.sectorId, ...(currentSector?.neighbors ?? [])];
+    if (!validTargets.includes(targetSectorId)) return null;
+
+    if (unit.meta?.issuedReports) {
+      unit.meta.issuedReports = unit.meta.issuedReports.filter(
+        (key) => !key.startsWith(`recon:${targetSectorId}:`)
+      );
+    }
+
+    return this.issueOrder(unitId, '정찰', { targetSectorId });
+  }
+
   setSectorAlert(sectorId, alert = true, label = null) {
     const sector = this.getSector(sectorId);
     if (!sector) return false;
@@ -841,7 +862,7 @@ export function createDefaultSimulation() {
         name: 'Alpha Recon',
         sectorId: 'A3',
         level: 2,
-        command: '정찰',
+        command: '대기',
         meta: { ignoreSupply: true }
       })
     ],

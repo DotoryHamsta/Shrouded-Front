@@ -69,13 +69,21 @@ function formatRecentReports(reports = []) {
 }
 
 export class DetailPanel {
-  constructor({ mount, getState = () => ({}) } = {}) {
+  constructor({ mount, getState = () => ({}), onIssueRecon = null } = {}) {
     if (!mount) {
       throw new Error('DetailPanel requires a mount element.');
     }
 
     this.mount = mount;
     this.getState = getState;
+    this.onIssueRecon = onIssueRecon;
+
+    this.mount.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-unit-id][data-sector-id]');
+      if (btn && this.onIssueRecon) {
+        this.onIssueRecon(btn.dataset.unitId, btn.dataset.sectorId);
+      }
+    });
   }
 
   renderEmpty() {
@@ -120,6 +128,8 @@ export class DetailPanel {
     const control = sector.control || 'unseen';
     const reconProgress = Number.isFinite(sector.reconProgress) ? `${Math.round(sector.reconProgress)}%` : '0%';
     const alertLabel = sector.alertLabel ? escapeHtml(sector.alertLabel) : (sector.alert ? '알림 있음' : '없음');
+
+    const reconCommandHtml = this._buildReconCommandHtml(sector, state);
 
     this.mount.innerHTML = `
       <div class="sf-detail-header">
@@ -180,6 +190,59 @@ export class DetailPanel {
       <div class="sf-detail-block">
         <div class="sf-detail-block-title">작전 메모</div>
         <div class="sf-detail-text">${notes}</div>
+      </div>
+
+      ${reconCommandHtml}
+    `;
+  }
+
+  _buildReconCommandHtml(sector, state) {
+    if (!this.onIssueRecon) return '';
+    const allUnits = Array.isArray(state.units) ? state.units : [];
+    const reconUnits = allUnits.filter(
+      (u) => u.type === 'recon' && u.status !== 'dead' && u.health > 0
+    );
+    if (reconUnits.length === 0) return '';
+
+    const sectorNeighbors = Array.isArray(sector.neighbors) ? sector.neighbors : [];
+    const buttons = [];
+
+    for (const unit of reconUnits) {
+      const unitSector = allUnits.length > 0 ? unit.sectorId : null;
+
+      if (unit.sectorId === sector.id) {
+        // 유닛이 이 구역에 있음 → 이웃 구역들을 타깃으로
+        for (const neighborId of sectorNeighbors) {
+          const neighborSector = Array.isArray(state.sectors)
+            ? state.sectors.find((s) => s.id === neighborId)
+            : null;
+          const label = neighborSector ? escapeHtml(neighborSector.code || neighborId) : escapeHtml(neighborId);
+          buttons.push(
+            `<button class="btn sf-recon-btn" data-unit-id="${escapeHtml(unit.id)}" data-sector-id="${escapeHtml(neighborId)}">${escapeHtml(unit.name)} → ${label} 정찰</button>`
+          );
+        }
+      } else if (sectorNeighbors.includes(unit.sectorId)) {
+        // 유닛이 인접 구역에 있음 → 이 구역으로 명령
+        const unitNeighbors = (() => {
+          const us = Array.isArray(state.sectors)
+            ? state.sectors.find((s) => s.id === unit.sectorId)
+            : null;
+          return Array.isArray(us?.neighbors) ? us.neighbors : [];
+        })();
+        if (unitNeighbors.includes(sector.id)) {
+          buttons.push(
+            `<button class="btn sf-recon-btn" data-unit-id="${escapeHtml(unit.id)}" data-sector-id="${escapeHtml(sector.id)}">${escapeHtml(unit.name)} → ${escapeHtml(sector.code || sector.id)} 정찰</button>`
+          );
+        }
+      }
+    }
+
+    if (buttons.length === 0) return '';
+
+    return `
+      <div class="sf-detail-block sf-recon-block">
+        <div class="sf-detail-block-title">정찰 명령</div>
+        <div class="sf-recon-actions">${buttons.join('')}</div>
       </div>
     `;
   }

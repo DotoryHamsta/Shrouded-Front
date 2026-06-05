@@ -635,3 +635,32 @@ body{
   }
 
 }
+
+.sf-recon-block {
+  border-top: 1px solid var(--accent);
+  margin-top: 8px;
+}
+
+.sf-recon-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sf-recon-btn {
+  width: 100%;
+  text-align: left;
+  background: var(--panel2);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.sf-recon-btn:hover {
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel2));
+}

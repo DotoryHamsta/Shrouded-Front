@@ -118,7 +118,12 @@ function isOperationsOpen() {
 
 const detailPanel = createDetailPanel({
   mount: detailMount,
-  getState: () => state
+  getState: () => state,
+  onIssueRecon: (unitId, targetSectorId) => {
+    simulation.issueReconOrder(unitId, targetSectorId);
+    state = simulation.getState();
+    renderAll();
+  }
 });
 
 const operationsBoard = createOperationsBoard({
