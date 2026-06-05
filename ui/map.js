@@ -90,9 +90,10 @@ export class SectorMapView {
     this.mount.innerHTML = '';
 
     const shell = document.createElement('div');
+    shell.className = 'sf-map-shell';
     shell.style.width = '100%';
     shell.style.height = '100%';
-    shell.style.minHeight = '720px';
+    shell.style.minHeight = '0';
     shell.style.position = 'relative';
 
     const svg = createSvgEl('svg');
