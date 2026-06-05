@@ -1,13 +1,65 @@
-const mount = document.getElementById('mapMount');
+const mount = document.getElementById("mapMount");
 
 document.body.insertAdjacentHTML(
-  'afterbegin',
-  '<div style="position:fixed;top:0;left:0;z-index:99999;background:#ff0;color:#000;padding:12px;font-size:24px;">MAIN.JS TOP LEVEL OK</div>'
+  "afterbegin",
+  `
+  <div
+    style="
+      position:fixed;
+      top:0;
+      left:0;
+      z-index:99999;
+      background:yellow;
+      color:black;
+      padding:10px;
+      font-size:24px;
+    "
+  >
+    MAIN OK
+  </div>
+`
 );
 
-if (!mount) {
-  document.body.innerHTML = '<div style="padding:24px;color:red;">NO MOUNT</div>';
-  throw new Error('No mapMount element found.');
-}
+mount.innerHTML = `
+  <div
+    style="
+      color:white;
+      padding:30px;
+      font-size:32px;
+    "
+  >
+    IMPORT TEST
+  </div>
+`;
 
-mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">MAIN.JS WORKS</div>';
+import("./ui/map.js")
+  .then(() => {
+
+    mount.innerHTML += `
+      <div
+        style="
+          color:#7ef0b1;
+          padding:20px;
+          font-size:24px;
+        "
+      >
+        MAP.JS IMPORT OK
+      </div>
+    `;
+
+  })
+  .catch(err => {
+
+    mount.innerHTML = `
+      <pre
+        style="
+          color:#ff8a8a;
+          padding:20px;
+          white-space:pre-wrap;
+        "
+      >
+${err.stack || err.message || String(err)}
+      </pre>
+    `;
+
+  });
