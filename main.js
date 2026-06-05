@@ -6,44 +6,8 @@ document.body.insertAdjacentHTML(
 );
 
 if (!mount) {
-  document.body.innerHTML = '<div style="padding:24px;font-size:32px;color:red;">NO MOUNT</div>';
+  document.body.innerHTML = '<div style="padding:24px;color:red;">NO MOUNT</div>';
   throw new Error('No mapMount element found.');
 }
 
-mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">LOADING MAP MODULE...</div>';
-
-import('./ui/map.js?v=' + Date.now())
-  .then(({ createMapView }) => {
-    mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">MAP IMPORT OK</div>';
-
-    const view = createMapView({
-      mount,
-      stateProvider: () => ({
-        selectedSectorId: 'A1',
-        hoveredSectorId: null,
-        sectorsById: {},
-        sectorUnits: {}
-      }),
-      onSectorSelect: (sector) => {
-        mount.insertAdjacentHTML(
-          'beforeend',
-          `<div style="padding:12px;color:#8fbfff;">Selected: ${sector.code}</div>`
-        );
-      }
-    });
-
-    view.init();
-    view.update({
-      selectedSectorId: 'A1',
-      hoveredSectorId: null,
-      sectorsById: {},
-      sectorUnits: {}
-    });
-  })
-  .catch((err) => {
-    mount.innerHTML = `
-      <pre style="white-space:pre-wrap;color:#ff8a8a;padding:24px;font-size:18px;">
-${err?.stack || err?.message || String(err)}
-      </pre>
-    `;
-  });
+mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">MAIN.JS WORKS</div>';
