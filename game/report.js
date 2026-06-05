@@ -384,11 +384,14 @@ export class Report {
   }
 }
 
-export function formatTime(minutes) {
-  const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
-  const hh = Math.floor(safeMinutes / 60);
-  const mm = safeMinutes % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+// Time is measured in seconds (1 simulation tick = 1 second). The clock is
+// formatted as MM:SS so it stays consistent with the "N초" labels used
+// elsewhere in the UI.
+export function formatTime(seconds) {
+  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  const mm = Math.floor(safeSeconds / 60);
+  const ss = safeSeconds % 60;
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
 export function createReportList(reports = []) {

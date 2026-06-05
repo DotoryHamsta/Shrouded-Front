@@ -1,9 +1,9 @@
-import { createDefaultSimulation } from './game/simulation.js?v=24';
-import { formatTime } from './game/report.js?v=24';
-import { createMapView } from './ui/map.js?v=24';
-import { createDetailPanel } from './ui/details.js?v=24';
-import { createOperationsBoard } from './ui/operations.js?v=24';
-import { createUnitRoster } from './ui/roster.js?v=24';
+import { createDefaultSimulation } from './game/simulation.js?v=26';
+import { formatTime } from './game/report.js?v=26';
+import { createMapView } from './ui/map.js?v=26';
+import { createDetailPanel } from './ui/details.js?v=26';
+import { createOperationsBoard } from './ui/operations.js?v=26';
+import { createUnitRoster } from './ui/roster.js?v=26';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -19,7 +19,7 @@ root.innerHTML = `
     <header class="topbar">
       <div class="titleBlock">
         <h1>Shrouded Front</h1>
-        <p id="timeReadout">00:00 · Turn 0</p>
+        <p id="timeReadout">00:00 경과</p>
       </div>
       <div class="controls">
         <button class="btn" id="pauseButton" type="button">Pause</button>
@@ -218,7 +218,7 @@ function renderHeader() {
   const reconUnit = state.units.find((unit) => unit.type === 'recon');
   const reconProgress = reconUnit ? `${Math.round(reconUnit.reconProgress ?? 0)}%` : '0%';
 
-  timeReadout.textContent = `${formatTime(state.time)} · Turn ${state.turn}`;
+  timeReadout.textContent = `${formatTime(state.time)} 경과`;
   pauseButton.textContent = state.paused ? 'Resume' : 'Pause';
   pauseButton.classList.toggle('active', state.paused);
   mapStatus.textContent = selected

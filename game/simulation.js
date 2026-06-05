@@ -4,16 +4,16 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js?v=24';
-import { Sector } from './sector.js?v=24';
-import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=24';
+import { MAP, getSectorById } from '../data/map.js?v=26';
+import { Sector } from './sector.js?v=26';
+import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=26';
 import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
   isUnitAlive,
   unitLabel
-} from './unit.js?v=24';
+} from './unit.js?v=26';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -764,7 +764,7 @@ export class Simulation {
       body: [
         `Unit: ${unit.name}`,
         `Order: ${order}`,
-        targetSectorId ? `Target: ${targetSectorId}` : null,
+        targetSectorId ? `Target: ${this.getSector(targetSectorId)?.code ?? targetSectorId}` : null,
         note ? `Note: ${note}` : null
       ].filter(Boolean).join('\n'),
       tags: ['command', unit.type],

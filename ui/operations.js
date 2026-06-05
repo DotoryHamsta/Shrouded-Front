@@ -8,8 +8,9 @@
 // - supply and communication state
 // - command / mission summaries
 
-import { formatTime } from '../game/report.js?v=24';
-import { unitLabel } from '../game/unit.js?v=24';
+import { formatTime } from '../game/report.js?v=26';
+import { unitLabel } from '../game/unit.js?v=26';
+import { codeForSector } from '../data/map.js?v=26';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -37,7 +38,7 @@ function enemyText(sector) {
 function unitRow(unit) {
   const label = unit.label || unitLabel(unit);
   const name = unit.name || label;
-  const sector = unit.sectorId || '-';
+  const sector = codeForSector(unit.sectorId);
   const level = unit.level ?? 1;
   const health = Math.max(0, Math.round(unit.health ?? 0));
   const food = Math.max(0, Math.round(unit.food ?? 0));
@@ -150,7 +151,6 @@ export class OperationsBoard {
     const sectors = Array.isArray(state.sectors) ? state.sectors : [];
     const paused = Boolean(state.paused);
     const speed = state.speed ?? 1;
-    const turn = state.turn ?? 0;
     const time = state.time ?? 0;
 
     const activeUnits = units.filter((u) => (u.status || '') !== 'dead');
@@ -175,8 +175,7 @@ export class OperationsBoard {
         </div>
 
         <div class="sf-ops-summary-grid">
-          ${summaryCard('Turn', String(turn))}
-          ${summaryCard('Time', formatTime(time))}
+          ${summaryCard('경과 시간', formatTime(time))}
           ${summaryCard('Active Units', String(activeUnits.length))}
           ${summaryCard('Reports', String(reports.length))}
           ${summaryCard('Alert Sectors', String(alertSectors.length))}
@@ -189,7 +188,7 @@ export class OperationsBoard {
           <div class="sf-ops-section-title">현재 작전</div>
           <div class="sf-ops-text">
             ${reconUnits.length > 0
-              ? reconUnits.map((unit) => `${escapeHtml(unit.name || unitLabel(unit))} · ${escapeHtml(unit.sectorId || '-')} · ${escapeHtml(Math.round(unit.reconProgress || 0))}%`).join('<br>')
+              ? reconUnits.map((unit) => `${escapeHtml(unit.name || unitLabel(unit))} · ${escapeHtml(codeForSector(unit.sectorId))} · ${escapeHtml(Math.round(unit.reconProgress || 0))}%`).join('<br>')
               : '진행 중인 정찰 없음'}
           </div>
         </div>

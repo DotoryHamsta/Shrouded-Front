@@ -3,7 +3,7 @@
 // Keeps the NATO-style symbology and human-readable activity text in one place
 // so the map view and the unit roster stay consistent.
 
-import { codeForSector } from '../data/map.js?v=24';
+import { codeForSector } from '../data/map.js?v=26';
 
 // Report cadence by unit level (mirrors Simulation._reportInterval).
 const REPORT_INTERVAL_BY_LEVEL = [20, 14, 9, 6, 4];
@@ -54,13 +54,13 @@ export function describeUnitActivity(unit) {
     if (rs && rs.sectorId === unit.sectorId && !rs.setupDone) {
       const left = Math.max(0, rs.setupLeft ?? 0);
       const hungry = status === 'hungry' ? ' · 식량 부족' : '';
-      return { text: `초기 정찰 중 (${left}턴)${hungry}`, tone: 'setup' };
+      return { text: `초기 정찰 중 (${left}초)${hungry}`, tone: 'setup' };
     }
     if (rs && rs.sectorId === unit.sectorId && rs.setupDone) {
       const interval = reportIntervalForLevel(unit.level);
       const next = Math.max(0, interval - (rs.turnsSinceReport ?? 0));
       const hungry = status === 'hungry' ? ' · 식량 부족' : '';
-      return { text: `정찰 중 · 다음 보고 ${next}턴${hungry}`, tone: 'recon' };
+      return { text: `정찰 중 · 다음 보고 ${next}초${hungry}`, tone: 'recon' };
     }
     return { text: '정찰 준비', tone: 'setup' };
   }
