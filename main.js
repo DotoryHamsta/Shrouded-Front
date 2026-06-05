@@ -1,4 +1,4 @@
-import { createDefaultSimulation } from './game/simulation.js?v=20';
+import { createDefaultSimulation } from './game/simulation.js?v=22';
 import { formatTime } from './game/report.js?v=20';
 import { createMapView } from './ui/map.js?v=21';
 import { createDetailPanel } from './ui/details.js?v=21';

@@ -279,6 +279,44 @@ export class Simulation {
     return best?.sectorId ?? available[0] ?? null;
   }
 
+  // Breadth-first search over the sector adjacency graph (sector.neighbors).
+  // Returns the id of the first hop from `fromId` along a shortest path to
+  // `targetId`, or null if unreachable. Movement follows real map geography
+  // rather than the order sectors happen to appear in the data array.
+  _nextHopTowards(fromId, targetId) {
+    if (fromId === targetId) return null;
+
+    const visited = new Set([fromId]);
+    const queue = [fromId];
+    const cameFrom = new Map();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const sector = this.getSector(current);
+      const neighbors = sector?.neighbors ?? [];
+
+      for (const next of neighbors) {
+        if (visited.has(next) || !this.sectors.has(next)) continue;
+        visited.add(next);
+        cameFrom.set(next, current);
+
+        if (next === targetId) {
+          // Walk back to the hop directly adjacent to fromId.
+          let step = next;
+          while (cameFrom.get(step) !== fromId) {
+            step = cameFrom.get(step);
+            if (step === undefined) return null;
+          }
+          return step;
+        }
+
+        queue.push(next);
+      }
+    }
+
+    return null;
+  }
+
   _moveUnitTowards(unit, targetSectorId) {
     if (!unit || !targetSectorId || !unit.isAlive) return false;
     if (unit.sectorId === targetSectorId) return false;
@@ -287,13 +325,8 @@ export class Simulation {
     const targetSector = this.getSector(targetSectorId);
     if (!currentSector || !targetSector) return false;
 
-    const currentIndex = [...this.sectors.keys()].indexOf(unit.sectorId);
-    const targetIndex = [...this.sectors.keys()].indexOf(targetSectorId);
-    if (currentIndex < 0 || targetIndex < 0) return false;
-
-    const step = targetIndex > currentIndex ? 1 : -1;
-    const nextSectorId = [...this.sectors.keys()][currentIndex + step];
-    const nextSector = this.getSector(nextSectorId);
+    const nextSectorId = this._nextHopTowards(unit.sectorId, targetSectorId);
+    const nextSector = nextSectorId ? this.getSector(nextSectorId) : null;
     if (!nextSector) return false;
 
     const moveCost = this._sectorTerrainCost(nextSector) * (2 / Math.max(1, unit.move));
