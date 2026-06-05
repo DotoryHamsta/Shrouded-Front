@@ -1,5 +1,3 @@
-import { createMapView } from './ui/map.js?v=1';
-
 const mount = document.getElementById('mapMount');
 
 document.body.insertAdjacentHTML(
@@ -12,42 +10,40 @@ if (!mount) {
   throw new Error('No mapMount element found.');
 }
 
-mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">IMPORTING MAP...</div>';
+mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">LOADING MAP MODULE...</div>';
 
-try {
-  const view = createMapView({
-    mount,
-    stateProvider: () => ({
+import('./ui/map.js?v=' + Date.now())
+  .then(({ createMapView }) => {
+    mount.innerHTML = '<div style="padding:24px;font-size:32px;color:white;">MAP IMPORT OK</div>';
+
+    const view = createMapView({
+      mount,
+      stateProvider: () => ({
+        selectedSectorId: 'A1',
+        hoveredSectorId: null,
+        sectorsById: {},
+        sectorUnits: {}
+      }),
+      onSectorSelect: (sector) => {
+        mount.insertAdjacentHTML(
+          'beforeend',
+          `<div style="padding:12px;color:#8fbfff;">Selected: ${sector.code}</div>`
+        );
+      }
+    });
+
+    view.init();
+    view.update({
       selectedSectorId: 'A1',
       hoveredSectorId: null,
       sectorsById: {},
       sectorUnits: {}
-    }),
-    onSectorSelect: (sector) => {
-      mount.insertAdjacentHTML(
-        'beforeend',
-        `<div style="padding:12px;color:#8fbfff;">Selected: ${sector.code}</div>`
-      );
-    }
-  });
-
-  view.init();
-  view.update({
-    selectedSectorId: 'A1',
-    hoveredSectorId: null,
-    sectorsById: {},
-    sectorUnits: {}
-  });
-
-  mount.insertAdjacentHTML(
-    'afterbegin',
-    '<div style="padding:12px;color:#7fe6a0;">MAP MODULE OK</div>'
-  );
-} catch (err) {
-  mount.innerHTML = `
-    <pre style="white-space:pre-wrap;color:#ff8a8a;padding:24px;font-size:18px;">
+    });
+  })
+  .catch((err) => {
+    mount.innerHTML = `
+      <pre style="white-space:pre-wrap;color:#ff8a8a;padding:24px;font-size:18px;">
 ${err?.stack || err?.message || String(err)}
-    </pre>
-  `;
-  throw err;
-}
+      </pre>
+    `;
+  });
