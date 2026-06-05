@@ -1,25 +1,21 @@
+import { MAP } from '../data/map.js';
+
 export function createMapView({ mount } = {}) {
-  if (!mount) {
-    throw new Error('createMapView: mount is required');
-  }
+  if (!mount) throw new Error('mount required');
 
   return {
     init() {
       mount.innerHTML = `
         <div style="
-          width: 100%;
-          height: 80vh;
-          background: #111827;
-          border: 1px solid #304155;
-          border-radius: 18px;
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 32px;
-          font-weight: 800;
+          padding:24px;
+          color:#fff;
+          background:#111827;
+          border:1px solid #304155;
+          border-radius:18px;
+          font-size:28px;
+          font-weight:800;
         ">
-          MAP MODULE OK
+          MAP OK — sectors: ${MAP.sectors.length}
         </div>
       `;
     },
