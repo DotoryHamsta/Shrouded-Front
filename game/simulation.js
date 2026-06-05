@@ -4,16 +4,16 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js?v=23';
-import { Sector } from './sector.js?v=23';
-import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=23';
+import { MAP, getSectorById } from '../data/map.js?v=24';
+import { Sector } from './sector.js?v=24';
+import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=24';
 import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
   isUnitAlive,
   unitLabel
-} from './unit.js?v=23';
+} from './unit.js?v=24';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -54,7 +54,7 @@ function clonePlainObject(value) {
 }
 
 export class Simulation {
-  constructor({ map = MAP, units = [], reports = [] } = {}) {
+  constructor({ map = MAP, units = [], reports = [], commAnchors = [] } = {}) {
     this.map = map;
     this.sectors = new Map();
     this.units = new Map();
@@ -66,6 +66,9 @@ export class Simulation {
     this.speed = 1;
     this.historyLimit = 250;
     this.defaultSupplySectorIds = [];
+    // Communication anchors (always-on transmitters): HQ, forward command, etc.
+    // Used by the comm system to determine which units are connected.
+    this.commAnchors = Array.isArray(commAnchors) ? commAnchors.map((a) => ({ ...a })) : [];
 
     this._buildSectors();
     this._ingestUnits(units);
@@ -231,7 +234,8 @@ export class Simulation {
       sectors: this.listSectors().map((s) => s.toJSON()),
       units: this.listUnits().map((u) => u.toJSON()),
       reports: this.listReports().map((r) => r.toJSON()),
-      operations: this.listOperations().map((op) => clonePlainObject(op))
+      operations: this.listOperations().map((op) => clonePlainObject(op)),
+      commAnchors: this.commAnchors.map((a) => ({ ...a }))
     };
   }
 
@@ -818,17 +822,30 @@ export function createSimulation(options = {}) {
 }
 
 export function createDefaultSimulation() {
+  // Experimental comm scenario: a small recon force starts at Forest D (HQ)
+  // and the objective is to scout north toward Valley A. The northern Valley/
+  // Ridge sectors fall outside the 2-hop comm range of the anchors, so relays
+  // must be positioned (e.g. at Plain C) to keep the lead scout connected.
+  const startSector = 'D5'; // Forest D
+  const reconAt = (name, level) => Unit.recon({
+    name,
+    sectorId: startSector,
+    level,
+    command: '대기',
+    meta: { ignoreSupply: true }
+  });
+
   return new Simulation({
     map: MAP,
     units: [
-      Unit.recon({
-        name: 'Alpha Recon',
-        sectorId: 'A3',
-        level: 2,
-        command: '대기',
-        meta: { ignoreSupply: true }
-      })
+      reconAt('Alpha Recon', 2),
+      reconAt('Bravo Recon', 2),
+      reconAt('Charlie Recon', 1)
     ],
-    reports: []
+    reports: [],
+    commAnchors: [
+      { sectorId: 'D5', label: 'HQ' },
+      { sectorId: 'D3', label: '야전사령부' }
+    ]
   });
 }

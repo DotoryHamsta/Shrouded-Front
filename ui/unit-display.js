@@ -3,7 +3,7 @@
 // Keeps the NATO-style symbology and human-readable activity text in one place
 // so the map view and the unit roster stay consistent.
 
-import { codeForSector } from '../data/map.js?v=23';
+import { codeForSector } from '../data/map.js?v=24';
 
 // Report cadence by unit level (mirrors Simulation._reportInterval).
 const REPORT_INTERVAL_BY_LEVEL = [20, 14, 9, 6, 4];

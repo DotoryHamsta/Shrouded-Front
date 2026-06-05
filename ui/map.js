@@ -2,8 +2,8 @@
 // SVG map renderer for Shrouded Front.
 // Renders the full sector map from data/map.js.
 
-import { MAP, getSectorById } from '../data/map.js?v=23';
-import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=23';
+import { MAP, getSectorById } from '../data/map.js?v=24';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=24';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -123,6 +123,7 @@ export class SectorMapView {
     this.labelElements = new Map();
     this.pinElements = new Map();
     this.unitLayer = null;
+    this.anchorLayer = null;
   }
 
   init() {
@@ -174,13 +175,15 @@ export class SectorMapView {
 
     const sectorLayer = createSvgEl('g');
     const labelLayer = createSvgEl('g');
+    const anchorLayer = createSvgEl('g');
     const unitLayer = createSvgEl('g');
     const pinLayer = createSvgEl('g');
 
-    svg.append(defs, river, riverFoam, sectorLayer, labelLayer, unitLayer, pinLayer);
+    svg.append(defs, river, riverFoam, sectorLayer, labelLayer, anchorLayer, unitLayer, pinLayer);
     shell.appendChild(svg);
     this.mount.appendChild(shell);
     this.svg = svg;
+    this.anchorLayer = anchorLayer;
     this.unitLayer = unitLayer;
 
     this._buildSectors(sectorLayer);
@@ -340,9 +343,54 @@ export class SectorMapView {
       }
     }
 
+    this._renderAnchors(state);
     this._renderUnitTokens(state);
 
     return this;
+  }
+
+  _renderAnchors(state) {
+    if (!this.anchorLayer) return;
+    this.anchorLayer.innerHTML = '';
+
+    const anchors = Array.isArray(state.commAnchors) ? state.commAnchors : [];
+    const sectorsById = state.sectorsById ?? {};
+
+    for (const anchor of anchors) {
+      const sector = sectorsById[anchor.sectorId] ?? getSectorById(anchor.sectorId);
+      if (!sector) continue;
+      const center = centerOf(sector);
+
+      const group = createSvgEl('g');
+      group.setAttribute('transform', `translate(${center.x}, ${center.y - 30})`);
+      group.setAttribute('pointer-events', 'none');
+
+      const label = String(anchor.label ?? 'HQ');
+      const w = Math.max(34, label.length * 11 + 16);
+
+      const pill = createSvgEl('rect');
+      pill.setAttribute('x', `${-w / 2}`);
+      pill.setAttribute('y', '-11');
+      pill.setAttribute('width', `${w}`);
+      pill.setAttribute('height', '22');
+      pill.setAttribute('rx', '11');
+      pill.setAttribute('fill', 'rgba(20,24,31,0.92)');
+      pill.setAttribute('stroke', 'rgba(235,196,110,0.95)');
+      pill.setAttribute('stroke-width', '1.5');
+      group.appendChild(pill);
+
+      const text = createSvgEl('text');
+      text.setAttribute('x', '0');
+      text.setAttribute('y', '4');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', 'rgba(245,222,160,0.98)');
+      text.setAttribute('font-size', '12');
+      text.setAttribute('font-weight', '800');
+      text.textContent = `⚑ ${label}`;
+      group.appendChild(text);
+
+      this.anchorLayer.appendChild(group);
+    }
   }
 
   _renderUnitTokens(state) {
