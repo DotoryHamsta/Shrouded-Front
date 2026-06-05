@@ -36,11 +36,16 @@ function formatSizeLabel(size) {
   return 'small';
 }
 
-function inferClassFromProgress(progress) {
-  if (progress >= 80) return REPORT_CLASS.A;
-  if (progress >= 55) return REPORT_CLASS.B;
-  if (progress >= 25) return REPORT_CLASS.C;
+function reportClassFromLevel(level) {
+  if (level >= 4) return REPORT_CLASS.A;
+  if (level >= 3) return REPORT_CLASS.B;
+  if (level >= 2) return REPORT_CLASS.C;
   return REPORT_CLASS.D;
+}
+
+function refineSizeByLevel(rawSize, level) {
+  const precision = [20, 10, 5, 2, 1][Math.min(level - 1, 4)];
+  return Math.max(1, Math.round(rawSize / precision) * precision);
 }
 
 function clonePlainObject(value) {
@@ -243,17 +248,15 @@ export class Simulation {
     return penalties[sector.terrain] ?? 1.1;
   }
 
-  _terrainReconPenalty(sector) {
-    if (!sector) return 0;
-    const penalties = {
-      valley: 0.25,
-      ridge: 0.05,
-      forest: 0.35,
-      swamp: 0.30,
-      river: 0.20,
-      plain: 0.10
-    };
-    return penalties[sector.terrain] ?? 0.15;
+  _setupTurns(sector, unit) {
+    const base = { valley: 10, ridge: 8, forest: 14, swamp: 16, river: 10, plain: 5 };
+    const baseTurns = base[sector?.terrain] ?? 8;
+    const reduction = (Math.min(unit.level, 5) - 1) * 0.12;
+    return Math.max(3, Math.round(baseTurns * (1 - reduction)));
+  }
+
+  _reportInterval(unit) {
+    return [20, 14, 9, 6, 4][Math.min(unit.level - 1, 4)];
   }
 
   _nearestSupplySectorId(fromSectorId) {
@@ -306,21 +309,13 @@ export class Simulation {
     unit.lastKnownSectorId = nextSector.id;
     this._attachUnitToSector(unit, nextSector.id);
 
-    if (unit.type === UNIT_TYPES.RECON) {
-      nextSector.setReconProgress(Math.min(100, nextSector.reconProgress + 8 + unit.level * 2));
-      nextSector.setControl(nextSector.reconProgress >= 60 ? 'revealed' : 'visible');
-      nextSector.setReportSummary(
-        nextSector.reconProgress >= 80 ? '정찰 중(고품질)' : '정찰 중'
-      );
-    }
-
     this.addReport(new Report({
       time: this.time,
       source: unit.name,
       sectorId: nextSector.id,
       sectorCode: nextSector.code,
       kind: REPORT_KINDS.STATUS,
-      classTag: inferClassFromProgress(nextSector.reconProgress),
+      classTag: reportClassFromLevel(unit.level),
       summary: '이동 보고',
       body: `${unit.name}\n${currentSector.code} → ${nextSector.code}`,
       tags: ['movement', unit.type],
@@ -379,97 +374,50 @@ export class Simulation {
     }
   }
 
-  _reconClassFromUnit(unit, sector) {
-    const reconSkill = unit.level + Math.floor(unit.vision / 2);
-    const terrainPenalty = this._terrainReconPenalty(sector);
-    const effective = reconSkill - terrainPenalty * 10;
-
-    if (effective >= 7) return REPORT_CLASS.A;
-    if (effective >= 5) return REPORT_CLASS.B;
-    if (effective >= 3) return REPORT_CLASS.C;
-    return REPORT_CLASS.D;
-  }
-
-  _reconProgressRate(unit, sector) {
-    const terrainDrag = this._terrainReconPenalty(sector);
-    const skill = 3 + unit.level * 0.7 + unit.vision * 0.15;
-    const fatigueDrag = unit.fatigue >= 70 ? 0.65 : unit.fatigue >= 40 ? 0.82 : 1;
-    const foodDrag = unit.isHungry ? 0.72 : 1;
-    return clamp(skill * (1 - terrainDrag) * fatigueDrag * foodDrag, 0.5, 8);
-  }
-
-  _reconReportKey(sectorId) {
-    return `recon:${sectorId}:80`;
-  }
-
-  _hasIssuedReconReport(unit, sectorId) {
-    const issued = Array.isArray(unit.meta?.issuedReports) ? unit.meta.issuedReports : [];
-    return issued.includes(this._reconReportKey(sectorId));
-  }
-
-  _markIssuedReconReport(unit, sectorId) {
+  _tickRecon(unit, sector) {
+    if (unit.type !== UNIT_TYPES.RECON || !sector) return;
     if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
-    if (!Array.isArray(unit.meta.issuedReports)) unit.meta.issuedReports = [];
-    const key = this._reconReportKey(sectorId);
-    if (!unit.meta.issuedReports.includes(key)) {
-      unit.meta.issuedReports.push(key);
+
+    const rs = unit.meta.reconState;
+    if (!rs || rs.sectorId !== sector.id) {
+      const setupTotal = this._setupTurns(sector, unit);
+      unit.meta.reconState = {
+        sectorId: sector.id,
+        setupTotal,
+        setupLeft: setupTotal,
+        setupDone: false,
+        turnsSinceReport: 0
+      };
+    }
+
+    const state = unit.meta.reconState;
+
+    if (!state.setupDone) {
+      state.setupLeft--;
+      const progress = Math.round((1 - state.setupLeft / state.setupTotal) * 99);
+      sector.setReconProgress(progress);
+      sector.setLastKnownTurn(this.turn);
+      unit.setReconProgress(progress);
+      sector.setReportSummary('초기 정찰 중');
+
+      if (state.setupLeft <= 0) {
+        state.setupDone = true;
+        state.turnsSinceReport = 0;
+        sector.setReconProgress(100);
+        unit.setReconProgress(100);
+        this._generateReconReport(unit, sector);
+      }
+    } else {
+      state.turnsSinceReport++;
+      if (state.turnsSinceReport >= this._reportInterval(unit)) {
+        state.turnsSinceReport = 0;
+        this._generateReconReport(unit, sector);
+      }
     }
   }
 
-  _refineEnemySummary(enemy, progress) {
-    if (!enemy) return null;
-    const precision = progress >= 95 ? 1 : progress >= 80 ? 5 : 10;
-    const rawSize = typeof enemy.size === 'number' ? enemy.size : 0;
-    const estimatedSize = rawSize > 0
-      ? Math.max(1, Math.round(rawSize / precision) * precision)
-      : rawSize;
-
-    return {
-      ...clonePlainObject(enemy),
-      size: estimatedSize,
-      sizeLabel: formatSizeLabel(estimatedSize),
-      class: inferClassFromProgress(progress)
-    };
-  }
-
-  _setReconProgressSummary(sector) {
-    const progress = sector.reconProgress;
-    if (sector.enemySummary) return;
-    if (progress >= 80) {
-      sector.setReportSummary('정찰 보고 확보');
-    } else if (progress >= 55) {
-      sector.setReportSummary('정찰 중(정제 중)');
-    } else if (progress >= 25) {
-      sector.setReportSummary('정찰 중(추정)');
-    } else if (progress > 0) {
-      sector.setReportSummary('정찰 중(불명확)');
-    }
-  }
-
-  _advanceReconProgress(unit, sector) {
-    if (unit.type !== UNIT_TYPES.RECON || !sector) return;
-
-    const before = sector.reconProgress;
-    const delta = this._reconProgressRate(unit, sector);
-    sector.setReconProgress(clamp(before + delta, 0, 100));
-    sector.setLastKnownTurn(this.turn);
-    unit.setReconProgress(sector.reconProgress);
-    unit.turnsSinceReport += 1;
-
-    this._setReconProgressSummary(sector);
-    this._maybeCreateReconReport(unit, sector);
-
-    if (sector.reconProgress >= 100) {
-      unit.setCommand('대기');
-    }
-  }
-
-  _maybeCreateReconReport(unit, sector) {
-    if (unit.type !== UNIT_TYPES.RECON || !sector) return;
-    const progress = sector.reconProgress;
-    if (progress < 80 || this._hasIssuedReconReport(unit, sector.id)) return;
-
-    const classTag = inferClassFromProgress(progress);
+  _generateReconReport(unit, sector) {
+    const classTag = reportClassFromLevel(unit.level);
     const hiddenEnemy = sector.hiddenEnemySummary ?? sector.enemySummary;
 
     if (!hiddenEnemy) {
@@ -484,27 +432,17 @@ export class Simulation {
         kind: REPORT_KINDS.RECON,
         classTag,
         summary: '정찰 보고',
-        body: `${sector.code}\n가시한 적 없음`,
+        body: `${sector.code}\n적 미확인`,
         tags: ['recon', 'no-contact'],
-        meta: {
-          unitId: unit.id,
-          sectorTerrain: sector.terrain,
-          reconProgress: progress
-        }
+        meta: { unitId: unit.id, sectorTerrain: sector.terrain }
       }));
-      this._markIssuedReconReport(unit, sector.id);
-      unit.turnsSinceReport = 0;
       return;
     }
 
-    const enemy = this._refineEnemySummary(hiddenEnemy, progress);
-    const sizeLabel = enemy.sizeLabel ?? formatSizeLabel(enemy.size);
-    const body = [
-      sector.code,
-      `Enemy ${enemy.type}`,
-      `${enemy.size} (${sizeLabel})`,
-      `Class ${enemy.class}`
-    ].join('\n');
+    const rawSize = typeof hiddenEnemy.size === 'number' ? hiddenEnemy.size : 0;
+    const size = refineSizeByLevel(rawSize, unit.level);
+    const sizeLabel = formatSizeLabel(size);
+    const enemy = { ...clonePlainObject(hiddenEnemy), size, sizeLabel, class: classTag };
 
     sector.setEnemySummary(enemy);
     sector.setAlert(true, `적 ${enemy.type} 보고`);
@@ -519,23 +457,13 @@ export class Simulation {
       kind: REPORT_KINDS.RECON,
       classTag,
       summary: '정찰 보고',
-      body,
-      enemySummary: {
-        ...enemy,
-        sizeLabel
-      },
+      body: [sector.code, `Enemy ${enemy.type}`, `${size} (${sizeLabel})`, `Class ${classTag}`].join('\n'),
+      enemySummary: enemy,
       alert: true,
       pinned: true,
-      tags: ['recon', enemy.type, enemy.class],
-      meta: {
-        unitId: unit.id,
-        sectorTerrain: sector.terrain,
-        reconProgress: progress
-      }
+      tags: ['recon', enemy.type, classTag],
+      meta: { unitId: unit.id, sectorTerrain: sector.terrain }
     }));
-
-    this._markIssuedReconReport(unit, sector.id);
-    unit.turnsSinceReport = 0;
   }
 
   _resolveCombat(attacker, sector) {
@@ -649,7 +577,7 @@ export class Simulation {
         if (unit.targetSectorId && unit.sectorId !== unit.targetSectorId) {
           this._moveUnitTowards(unit, unit.targetSectorId);
         } else {
-          this._advanceReconProgress(unit, sector);
+          this._tickRecon(unit, sector);
         }
       } else if (!connected) {
         unit.setStatus(UNIT_STATUS.DISCONNECTED);
@@ -817,11 +745,8 @@ export class Simulation {
     const validTargets = [unit.sectorId, ...(currentSector?.neighbors ?? [])];
     if (!validTargets.includes(targetSectorId)) return null;
 
-    if (unit.meta?.issuedReports) {
-      unit.meta.issuedReports = unit.meta.issuedReports.filter(
-        (key) => !key.startsWith(`recon:${targetSectorId}:`)
-      );
-    }
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.reconState = null;
 
     unit.setCommand('정찰');
     return this.issueOrder(unitId, '정찰', { targetSectorId });
