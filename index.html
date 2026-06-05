@@ -16,11 +16,11 @@
 
       <div class="controls">
         <button id="pauseBtn" class="btn primary">Pause</button>
-        <button class="btn speedBtn" data-speed="0.5">0.5x</button>
-        <button class="btn speedBtn active" data-speed="1">1x</button>
+        <button class="btn speedBtn active" data-speed="0.5">0.5x</button>
+        <button class="btn speedBtn" data-speed="1">1x</button>
         <button class="btn speedBtn" data-speed="2">2x</button>
         <button class="btn speedBtn" data-speed="4">4x</button>
-        <button id="operationsBtn" class="btn">작전판</button>
+        <button id="openOperationsBtn" class="btn">작전판</button>
       </div>
     </header>
 
@@ -30,18 +30,18 @@
           <div>전술 지도</div>
           <div class="mapHint">탭/호버로 구역 상세 보기 · 알림 발생 시 빨간 핀 표시</div>
         </div>
-        <div id="map" class="map"></div>
+        <div id="mapMount" class="mapMount"></div>
       </section>
 
       <aside class="sidePanel">
         <section class="panel">
           <h2>신규 보고</h2>
-          <div id="alerts" class="alerts"></div>
+          <div id="alertsPanel" class="alerts"></div>
         </section>
 
         <section class="panel">
           <h2>지역 정보</h2>
-          <div id="sectorDetails" class="details">
+          <div id="detailPanel" class="details">
             지역을 선택하면 작전 정보가 표시된다.
           </div>
         </section>
@@ -53,33 +53,14 @@
     <div class="modalCard">
       <div class="modalHeader">
         <h2>작전판</h2>
-        <button id="closeOperations" class="btn">닫기</button>
+        <button id="closeOperationsBtn" class="btn">닫기</button>
       </div>
       <div class="modalBody">
-        <div class="opsSummary">
-          <div class="summaryCard">
-            <div class="label">활성 보고</div>
-            <div id="opReportCount" class="value">0</div>
-          </div>
-          <div class="summaryCard">
-            <div class="label">아군 유닛</div>
-            <div id="opUnitCount" class="value">0</div>
-          </div>
-          <div class="summaryCard">
-            <div class="label">전장 상태</div>
-            <div id="opState" class="value">Running</div>
-          </div>
-          <div class="summaryCard">
-            <div class="label">시간</div>
-            <div id="opTime" class="value">00:00</div>
-          </div>
-        </div>
-
-        <div id="operationsList" class="operationsList"></div>
+        <div id="operationsPanel"></div>
       </div>
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
