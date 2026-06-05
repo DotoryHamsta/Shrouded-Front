@@ -644,6 +644,15 @@ export function getSectorById(id) {
   return MAP.sectors.find(sector => sector.id === id) || null;
 }
 
+// Translates an internal grid id (e.g. "B5") to the player-facing code
+// (e.g. "Plain D"). Grid ids are an implementation detail used for the
+// adjacency graph; the UI should only ever show codes. Falls back to the
+// id itself if no matching sector exists.
+export function codeForSector(id) {
+  if (!id) return '-';
+  return getSectorById(id)?.code ?? id;
+}
+
 export function getNeighborSectors(id) {
   const sector = getSectorById(id);
   if (!sector) return [];

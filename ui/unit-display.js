@@ -3,6 +3,8 @@
 // Keeps the NATO-style symbology and human-readable activity text in one place
 // so the map view and the unit roster stay consistent.
 
+import { codeForSector } from '../data/map.js?v=23';
+
 // Report cadence by unit level (mirrors Simulation._reportInterval).
 const REPORT_INTERVAL_BY_LEVEL = [20, 14, 9, 6, 4];
 
@@ -43,7 +45,7 @@ export function describeUnitActivity(unit) {
 
   const moving = unit.targetSectorId && unit.sectorId !== unit.targetSectorId;
   if (moving) {
-    return { text: `이동 중 → ${unit.targetSectorId}`, tone: 'move' };
+    return { text: `이동 중 → ${codeForSector(unit.targetSectorId)}`, tone: 'move' };
   }
 
   const command = String(unit.command ?? '');

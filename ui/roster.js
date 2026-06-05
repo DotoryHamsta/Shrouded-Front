@@ -2,7 +2,8 @@
 // Unit roster panel: lists all friendly units with their current activity so the
 // player can scan the force at a glance and jump to any unit on the map.
 
-import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=21';
+import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=23';
+import { codeForSector } from '../data/map.js?v=23';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -57,7 +58,7 @@ export class UnitRoster {
     this.mount.innerHTML = units.map((unit) => {
       const activity = describeUnitActivity(unit);
       const selected = this.selectedUnitId === unit.id ? ' sf-unit-card-selected' : '';
-      const sector = unit.sectorId || '-';
+      const sector = codeForSector(unit.sectorId);
       const maxFood = unit.meta?.maxFood ?? unit.maxFood ?? unit.food ?? 1;
       return `
         <div class="sf-unit-card${selected}" data-unit-id="${escapeHtml(unit.id)}">

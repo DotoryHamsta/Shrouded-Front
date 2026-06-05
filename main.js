@@ -1,9 +1,9 @@
-import { createDefaultSimulation } from './game/simulation.js?v=22';
-import { formatTime } from './game/report.js?v=20';
-import { createMapView } from './ui/map.js?v=21';
-import { createDetailPanel } from './ui/details.js?v=21';
-import { createOperationsBoard } from './ui/operations.js?v=20';
-import { createUnitRoster } from './ui/roster.js?v=21';
+import { createDefaultSimulation } from './game/simulation.js?v=23';
+import { formatTime } from './game/report.js?v=23';
+import { createMapView } from './ui/map.js?v=23';
+import { createDetailPanel } from './ui/details.js?v=23';
+import { createOperationsBoard } from './ui/operations.js?v=23';
+import { createUnitRoster } from './ui/roster.js?v=23';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
