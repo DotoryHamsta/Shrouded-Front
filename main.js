@@ -13,45 +13,10 @@ if (!mount) {
   throw new Error('No mapMount element found.');
 }
 
-mount.innerHTML = `
-  <div style="padding:24px;color:white;font-size:28px;">
-    LOADING MAP MODULE...
-  </div>
-`;
-
 import('./ui/map.js?v=' + Date.now())
   .then(({ createMapView }) => {
-    mount.innerHTML = `
-      <div id="mapOnlyMount" style="
-        width: 100%;
-        height: 80vh;
-        min-height: 700px;
-        margin-top: 12px;
-      "></div>
-    `;
-
-    const mapOnlyMount = document.getElementById('mapOnlyMount');
-
-    const view = createMapView({
-      mount: mapOnlyMount,
-      stateProvider: () => ({
-        selectedSectorId: 'A1',
-        hoveredSectorId: null,
-        sectorsById: {},
-        sectorUnits: {}
-      }),
-      onSectorSelect: (sector) => {
-        console.log('selected', sector.code);
-      }
-    });
-
+    const view = createMapView({ mount });
     view.init();
-    view.update({
-      selectedSectorId: 'A1',
-      hoveredSectorId: null,
-      sectorsById: {},
-      sectorUnits: {}
-    });
   })
   .catch((err) => {
     mount.innerHTML = `
