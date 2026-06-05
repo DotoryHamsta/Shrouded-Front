@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shrouded Front - SVG Map Sketch</title>
+  <style>
+    :root {
+      --bg: #0f1319;
+      --panel: #171d26;
+      --line: #304155;
+      --text: #e8eff8;
+      --muted: #98a6b8;
+      --forest: #2d4d3e;
+      --ridge: #5f5b4b;
+      --valley: #3a4558;
+      --plain: #293241;
+      --river: #2c6d9b;
+      --alert: #ff5e5e;
+      --focus: #8fbfff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #171d26 0%, #0f1319 65%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+    }
+    .mapWrap {
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      position: relative;
+    }
+    .topbar {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0,0,0,0.14);
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .topbar .sub {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .sidebar {
+      background: rgba(15,19,25,0.8);
+      padding: 14px;
+      overflow: auto;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: rgba(23,29,38,0.88);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(48,65,85,0.55);
+      font-size: 13px;
+    }
+    .row:last-child { border-bottom: none; }
+    .label { color: var(--muted); }
+    .value { font-weight: 700; text-align: right; }
+
+    .svgBox {
+      position: absolute;
+      inset: 60px 0 0 0;
+      padding: 14px;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(143,191,255,0.07), transparent 26%),
+        radial-gradient(circle at 80% 78%, rgba(127,230,160,0.06), transparent 22%),
+        linear-gradient(180deg, #131923, #11161d);
+      border: 1px solid var(--line);
+    }
+    .sector {
+      stroke: rgba(255,255,255,0.14);
+      stroke-width: 2;
+      cursor: pointer;
+      transition: transform 0.12s ease, filter 0.12s ease, stroke 0.12s ease;
+      transform-origin: center;
+    }
+    .sector:hover { filter: brightness(1.08); }
+    .sector.selected {
+      stroke: var(--focus);
+      stroke-width: 4;
+      filter: brightness(1.12);
+    }
+    .sector.alert {
+      stroke: var(--alert);
+      stroke-width: 4;
+    }
+    .labelText {
+      fill: rgba(236,241,248,0.92);
+      font-size: 18px;
+      font-weight: 800;
+      pointer-events: none;
+    }
+    .subText {
+      fill: rgba(220,230,242,0.7);
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .pin {
+      font-size: 20px;
+      fill: var(--alert);
+      pointer-events: none;
+      filter: drop-shadow(0 0 6px rgba(255,94,94,0.45));
+    }
+    .riverLine {
+      fill: none;
+      stroke: rgba(74,160,216,0.95);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 6px rgba(44,109,155,0.35));
+      pointer-events: none;
+    }
+    .riverFoam {
+      fill: none;
+      stroke: rgba(175,225,255,0.35);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .panelTitle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .tinyTag {
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="mapWrap">
+      <div class="topbar">
+        <div>
+          <h1>Shrouded Front — Map Sketch</h1>
+          <div class="sub">좌상단 valley, 중심을 따라 흐르는 강, 우하단 숲, 상단 언덕</div>
+        </div>
+        <div class="sub">SVG / region-based map concept</div>
+      </div>
+
+      <div class="svgBox">
+        <svg id="mapSvg" viewBox="0 0 1200 820" aria-label="전술 지도">
+          <defs>
+            <linearGradient id="forestGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#325545" />
+              <stop offset="100%" stop-color="#244032" />
+            </linearGradient>
+            <linearGradient id="ridgeGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6a6553" />
+              <stop offset="100%" stop-color="#544f41" />
+            </linearGradient>
+            <linearGradient id="valleyGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#3e4a5e" />
+              <stop offset="100%" stop-color="#2f394a" />
+            </linearGradient>
+            <linearGradient id="plainGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#2f3948" />
+              <stop offset="100%" stop-color="#222b39" />
+            </linearGradient>
+          </defs>
+
+          <!-- Regions -->
+          <polygon class="sector" data-id="A1" fill="url(#valleyGrad)" points="0,0 270,0 325,110 255,190 160,225 40,170 0,80" />
+          <polygon class="sector" data-id="A2" fill="url(#ridgeGrad)" points="270,0 660,0 620,120 480,170 325,110" />
+          <polygon class="sector" data-id="A3" fill="url(#ridgeGrad)" points="660,0 1200,0 1200,155 980,170 770,130" />
+
+          <polygon class="sector" data-id="B1" fill="url(#plainGrad)" points="0,170 160,225 210,330 110,430 0,410" />
+          <polygon class="sector" data-id="B2" fill="url(#plainGrad)" points="160,225 255,190 360,280 310,400 210,330" />
+          <polygon class="sector" data-id="B3" fill="url(#plainGrad)" points="255,190 325,110 480,170 430,290 360,280" />
+          <polygon class="sector" data-id="B4" fill="url(#plainGrad)" points="480,170 620,120 770,130 720,300 555,305 430,290" />
+          <polygon class="sector" data-id="B5" fill="url(#plainGrad)" points="770,130 980,170 1000,320 860,330 720,300" />
+          <polygon class="sector" data-id="B6" fill="url(#plainGrad)" points="980,170 1200,155 1200,350 1000,320" />
+
+          <polygon class="sector" data-id="C1" fill="url(#valleyGrad)" points="0,410 110,430 180,560 50,660 0,640" />
+          <polygon class="sector" data-id="C2" fill="url(#valleyGrad)" points="110,430 210,330 310,400 275,540 180,560" />
+          <polygon class="sector" data-id="C3" fill="url(#plainGrad)" points="310,400 430,290 555,305 520,480 400,560 275,540" />
+          <polygon class="sector" data-id="C4" fill="url(#plainGrad)" points="555,305 720,300 760,470 620,560 520,480" />
+          <polygon class="sector" data-id="C5" fill="url(#plainGrad)" points="720,300 860,330 900,520 760,470" />
+          <polygon class="sector" data-id="C6" fill="url(#plainGrad)" points="860,330 1000,320 1090,470 900,520" />
+          <polygon class="sector" data-id="C7" fill="url(#forestGrad)" points="1000,320 1200,350 1200,560 1090,470" />
+
+          <polygon class="sector" data-id="D1" fill="url(#plainGrad)" points="50,660 180,560 275,540 240,820 0,820 0,640" />
+          <polygon class="sector" data-id="D2" fill="url(#plainGrad)" points="275,540 400,560 470,650 360,820 240,820" />
+          <polygon class="sector" data-id="D3" fill="url(#plainGrad)" points="400,560 520,480 620,560 590,700 470,650" />
+          <polygon class="sector" data-id="D4" fill="url(#plainGrad)" points="620,560 760,470 900,520 850,680 700,770 590,700" />
+          <polygon class="sector" data-id="D5" fill="url(#forestGrad)" points="900,520 1090,470 1200,560 1200,820 850,680" />
+
+          <!-- River path: runs from upper-left valley through center to lower-right forest -->
+          <path class="riverLine" d="M 130 70 C 210 130, 250 150, 285 205 S 380 320, 470 365 S 620 470, 700 560 S 860 690, 1035 760" />
+          <path class="riverFoam" d="M 130 70 C 210 130, 250 150, 285 205 S 380 320, 470 365 S 620 470, 700 560 S 860 690, 1035 760" />
+
+          <!-- Labels (rough center points) -->
+          <text class="labelText" x="120" y="110">Valley A</text>
+          <text class="subText" x="120" y="132">계곡 / 강 상류</text>
+          <text class="labelText" x="440" y="85">Ridge A</text>
+          <text class="subText" x="440" y="107">언덕 지대</text>
+          <text class="labelText" x="930" y="95">Ridge B</text>
+          <text class="subText" x="930" y="117">언덕 지대</text>
+
+          <text class="labelText" x="165" y="470">Valley B</text>
+          <text class="subText" x="165" y="492">계곡 / 강 중류</text>
+          <text class="labelText" x="740" y="410">Plain C</text>
+          <text class="subText" x="740" y="432">중앙 평야</text>
+          <text class="labelText" x="1010" y="700">Forest D</text>
+          <text class="subText" x="1010" y="722">숲 지역 / 강 하류</text>
+
+          <!-- Alert pins -->
+          <text class="pin" x="965" y="360">🔴</text>
+          <text class="pin" x="470" y="520">🔴</text>
+        </svg>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="card">
+        <div class="panelTitle">
+          <h2>개념 메모</h2>
+          <span class="tinyTag">SVG Draft</span>
+        </div>
+        <div class="hint">
+          이 지도는 실제 전장 타일이 아니라, 작전 구역을 묶은 SVG 구역도다. <br>
+          좌상단은 valley, 그 중심을 따라 강이 흐르고, 강은 우하단 숲으로 이어진다. <br>
+          상단은 ridge/언덕, 나머지는 중간 평야와 보조 계곡으로 채운다.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>표현 규칙</h2>
+        <div class="row"><span class="label">선택 구역</span><span class="value">파란 강조</span></div>
+        <div class="row"><span class="label">신규 알림</span><span class="value">빨간 핀</span></div>
+        <div class="row"><span class="label">미확인</span><span class="value">어두운 톤</span></div>
+        <div class="row"><span class="label">아군 영향권</span><span class="value">밝은 톤</span></div>
+      </div>
+
+      <div class="card">
+        <h2>다음 단계</h2>
+        <div class="hint">
+          1) 각 구역에 ID를 붙인다.<br>
+          2) hover/tap 시 오른쪽 패널에 상세를 보낸다.<br>
+          3) alert가 있는 구역만 빨간 테두리/핀을 붙인다.<br>
+          4) 이 SVG를 바탕으로 실제 `data/map.js`를 만든다.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const sectors = document.querySelectorAll('.sector');
+    const mapData = {
+      A1: { name: 'Valley A', detail: '좌상단 계곡 / 상류', status: '정찰 가능', note: '강 상류가 시작되는 지역' },
+      A2: { name: 'Ridge A', detail: '상단 언덕', status: '관측 우세', note: '고지대 시야 우수' },
+      A3: { name: 'Ridge B', detail: '상단 우측 언덕', status: '관측 우세', note: '측면 관측선 형성 가능' },
+      D5: { name: 'Forest D', detail: '우하단 숲 지역', status: '은폐 우수', note: '강 하류와 숲이 겹치는 지역' }
+    };
+
+    let selectedId = null;
+
+    function markSelected(id) {
+      sectors.forEach(s => s.classList.toggle('selected', s.dataset.id === id));
+      selectedId = id;
+    }
+
+    sectors.forEach(sector => {
+      sector.addEventListener('click', () => {
+        const data = mapData[sector.dataset.id] || {
+          name: sector.dataset.id,
+          detail: '구역 상세 미정',
+          status: '미탐색',
+          note: '이 구역의 세부 규칙을 나중에 추가한다.'
+        };
+
+        markSelected(sector.dataset.id);
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.querySelector('.card:nth-child(2)').innerHTML = `
+          <div class="panelTitle">
+            <h2>선택 구역</h2>
+            <span class="tinyTag">${sector.dataset.id}</span>
+          </div>
+          <div class="row"><span class="label">구역명</span><span class="value">${data.name}</span></div>
+          <div class="row"><span class="label">설명</span><span class="value">${data.detail}</span></div>
+          <div class="row"><span class="label">상태</span><span class="value">${data.status}</span></div>
+          <div class="hint" style="margin-top:10px;">${data.note}</div>
+        `;
+      });
+
+      sector.addEventListener('mouseenter', () => {
+        if (!selectedId) sector.style.filter = 'brightness(1.08)';
+      });
+
+      sector.addEventListener('mouseleave', () => {
+        if (!selectedId) sector.style.filter = '';
+      });
+    });
+
+    // default select central region
+    markSelected('C4');
+  </script>
+</body>
+</html>
