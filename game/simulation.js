@@ -490,6 +490,7 @@ export class Simulation {
       }));
       this._markIssuedReconReport(unit, sector.id);
       unit.turnsSinceReport = 0;
+      unit.setCommand('대기');
       return;
     }
 
@@ -532,6 +533,7 @@ export class Simulation {
 
     this._markIssuedReconReport(unit, sector.id);
     unit.turnsSinceReport = 0;
+    unit.setCommand('대기');
   }
 
   _resolveCombat(attacker, sector) {
@@ -819,6 +821,7 @@ export class Simulation {
       );
     }
 
+    unit.setCommand('정찰');
     return this.issueOrder(unitId, '정찰', { targetSectorId });
   }
 
