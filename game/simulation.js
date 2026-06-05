@@ -458,6 +458,10 @@ export class Simulation {
 
     this._setReconProgressSummary(sector);
     this._maybeCreateReconReport(unit, sector);
+
+    if (sector.reconProgress >= 100) {
+      unit.setCommand('대기');
+    }
   }
 
   _maybeCreateReconReport(unit, sector) {
@@ -490,7 +494,6 @@ export class Simulation {
       }));
       this._markIssuedReconReport(unit, sector.id);
       unit.turnsSinceReport = 0;
-      unit.setCommand('대기');
       return;
     }
 
@@ -533,7 +536,6 @@ export class Simulation {
 
     this._markIssuedReconReport(unit, sector.id);
     unit.turnsSinceReport = 0;
-    unit.setCommand('대기');
   }
 
   _resolveCombat(attacker, sector) {
