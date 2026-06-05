@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shrouded Front Prototype</title>
+  <style>
+    :root {
+      --bg: #0f1216;
+      --panel: #171b22;
+      --panel-2: #1f2630;
+      --text: #e7edf5;
+      --muted: #95a3b5;
+      --accent: #8fc7ff;
+      --danger: #ff7b7b;
+      --warn: #ffd36b;
+      --ok: #7ef0b1;
+      --line: #2b3441;
+      --chip: #243041;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0b0e12, #121722 40%, #0f1216);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      height: 100vh;
+      padding: 12px;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: rgba(23, 27, 34, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      backdrop-filter: blur(8px);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    header .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.08s ease, background 0.15s ease;
+    }
+
+    button:hover { background: #293242; }
+    button:active { transform: translateY(1px); }
+    button.primary { background: #2d4a68; border-color: #34526f; }
+    button.primary:hover { background: #365777; }
+    button.active { outline: 2px solid rgba(143, 199, 255, 0.35); }
+
+    .speed-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-left: 6px;
+      white-space: nowrap;
+    }
+
+    .panel {
+      background: rgba(23, 27, 34, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .map-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .map-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .map {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 14px;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .sector {
+      min-height: 120px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid #324052;
+      background: linear-gradient(180deg, #1c222c, #171b22);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .sector.selected {
+      outline: 2px solid rgba(143, 199, 255, 0.45);
+      box-shadow: 0 0 0 1px rgba(143, 199, 255, 0.12);
+    }
+
+    .sector .name {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+
+    .terrain {
+      color: #bfcbe0;
+      font-size: 13px;
+    }
+
+    .detail {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .units {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: auto;
+    }
+
+    .unit-pill {
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(36, 48, 65, 0.95);
+      border: 1px solid rgba(80, 95, 118, 0.7);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .unit-name { font-weight: 700; }
+    .unit-meta { color: var(--muted); }
+
+    .sidebar {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .card {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card:last-child { border-bottom: none; }
+
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-size: 15px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      background: #1a2029;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .stat .value {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .selected-box {
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .selected-box .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      margin: 5px 0;
+    }
+
+    .selected-box .row span:first-child { color: var(--muted); }
+
+    .log {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .log-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .log-header h2 { margin: 0; font-size: 15px; }
+    .log-body {
+      padding: 12px 14px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.45;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .report {
+      padding: 10px 12px;
+      background: #1a2029;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .report .time { color: var(--accent); font-weight: 700; }
+    .report .source { color: var(--muted); margin-top: 2px; font-size: 12px; }
+    .report .body { margin-top: 8px; white-space: pre-wrap; }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Shrouded Front — Prototype</h1>
+        <div class="sub">지휘소 막사에서 들어오는 보고를 바탕으로 작전하는 실시간 전술 프로토타입</div>
+      </div>
+      <div class="controls">
+        <button id="pauseBtn" class="primary">Pause</button>
+        <button data-speed="0.5">0.5x</button>
+        <button data-speed="1">1x</button>
+        <button data-speed="2" class="active">2x</button>
+        <button data-speed="4">4x</button>
+        <span class="speed-label">현재 속도: <strong id="speedLabel">2x</strong></span>
+      </div>
+    </header>
+
+    <section class="panel map-panel">
+      <div class="map-header">
+        <div>구역 지도</div>
+        <div class="tiny">구역 단위 / 격자 아님 / 선택한 구역의 보고와 주둔 유닛을 확인</div>
+      </div>
+      <div id="map" class="map"></div>
+    </section>
+
+    <aside class="sidebar">
+      <section class="panel">
+        <div class="card">
+          <h2>작전 현황</h2>
+          <div class="stats">
+            <div class="stat"><div class="label">턴/시간</div><div class="value" id="timeValue">00:00</div></div>
+            <div class="stat"><div class="label">전장 상태</div><div class="value" id="stateValue">Normal</div></div>
+            <div class="stat"><div class="label">활성 보고</div><div class="value" id="reportCount">0</div></div>
+            <div class="stat"><div class="label">아군 유닛</div><div class="value" id="unitCount">0</div></div>
+          </div>
+          <div class="legend">
+            <span class="tag">A: 거의 확실</span>
+            <span class="tag">B: 유력</span>
+            <span class="tag">C: 추정</span>
+            <span class="tag">D: 불명확</span>
+          </div>
+        </div>
+        <div class="selected-box">
+          <h2 style="margin:0 0 10px 0; font-size:15px;">선택 구역</h2>
+          <div class="row"><span>구역명</span><strong id="selName">-</strong></div>
+          <div class="row"><span>지형</span><strong id="selTerrain">-</strong></div>
+          <div class="row"><span>가시성</span><strong id="selVisibility">-</strong></div>
+          <div class="row"><span>상태</span><strong id="selControl">-</strong></div>
+          <div class="row"><span>주둔 유닛</span><strong id="selUnits">-</strong></div>
+          <div class="row"><span>최근 보고</span><strong id="selReport">-</strong></div>
+        </div>
+      </section>
+
+      <section class="panel log">
+        <div class="log-header">
+          <h2>보고서</h2>
+          <span class="tiny">최신 보고 우선</span>
+        </div>
+        <div id="log" class="log-body"></div>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    const TERRAIN_TYPES = {
+      plain:  { label: '평지', symbol: '.', move: 1, vision: 0 },
+      forest: { label: '숲', symbol: 'T', move: 2, vision: -1 },
+      ridge:  { label: '고지대', symbol: '^', move: 2, vision: 2 },
+      valley: { label: '계곡', symbol: 'V', move: 1, vision: -2 },
+      river:  { label: '강', symbol: '~', move: 2, vision: 0 },
+      swamp:  { label: '늪', symbol: 'M', move: 3, vision: -1 },
+    };
+
+    const UNIT_TYPES = {
+      recon: {
+        label: '정찰병',
+        food: 12,
+        vision: 4,
+        comm: 4,
+        maxHealth: 60,
+        attackMin: 4,
+        attackMax: 7,
+        move: 4,
+        ammo: 0,
+        role: 'Recon'
+      },
+      infantry: {
+        label: '보병',
+        food: 14,
+        vision: 2,
+        comm: 3,
+        maxHealth: 100,
+        attackMin: 6,
+        attackMax: 9,
+        move: 2,
+        ammo: 0,
+        role: 'Infantry'
+      },
+      artillery: {
+        label: '포병',
+        food: 10,
+        vision: 1,
+        comm: 3,
+        maxHealth: 80,
+        attackMin: 10,
+        attackMax: 14,
+        move: 1,
+        ammo: 6,
+        role: 'Artillery'
+      }
+    };
+
+    const SECTOR_NAMES = [
+      'Charlie', 'Lima', 'Foxtrot', 'Delta', 'Echo', 'Bravo',
+      'Kilo', 'Hotel', 'Oscar', 'Juliet', 'Sierra', 'Tango'
+    ];
+
+    const reportLog = [];
+    const state = {
+      speed: 2,
+      paused: false,
+      minutes: 0,
+      selectedSectorId: null,
+      sectors: [],
+      units: [],
+      seed: Math.floor(Math.random() * 999999),
+      lastTickAt: performance.now()
+    };
+
+    function rand(seedObj) {
+      // simple seeded pseudo-random generator via xorshift-ish integer hash
+      seedObj.value |= 0;
+      seedObj.value = (seedObj.value + 0x6D2B79F5) | 0;
+      let t = Math.imul(seedObj.value ^ (seedObj.value >>> 15), 1 | seedObj.value);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+
+    const rng = { value: state.seed };
+
+    function pick(arr) { return arr[Math.floor(rand(rng) * arr.length)]; }
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function addReport(source, title, body, sectorId = null) {
+      const report = {
+        time: state.minutes,
+        source,
+        title,
+        body,
+        sectorId
+      };
+      reportLog.unshift(report);
+      reportLog.splice(50);
+      renderSidebar();
+    }
+
+    function formatTime(minutes) {
+      const hh = Math.floor(minutes / 60);
+      const mm = minutes % 60;
+      return `${pad(hh)}:${pad(mm)}`;
+    }
+
+    function territoryVisibility(sector) {
+      let visibility = 0;
+      for (const feature of sector.features) {
+        visibility += TERRAIN_TYPES[feature].vision;
+      }
+      visibility += sector.controlledByPlayer ? 1 : 0;
+      return visibility;
+    }
+
+    function generateMap() {
+      const sectors = [];
+      const names = [...SECTOR_NAMES];
+      const featureSets = [
+        ['plain'],
+        ['forest'],
+        ['ridge'],
+        ['valley'],
+        ['river'],
+        ['swamp'],
+        ['plain', 'forest'],
+        ['plain', 'ridge'],
+        ['valley', 'forest'],
+        ['ridge', 'river'],
+        ['swamp', 'plain'],
+        ['forest', 'river']
+      ];
+
+      for (let i = 0; i < 12; i++) {
+        const features = pick(featureSets);
+        const terrainPrimary = features[0];
+        sectors.push({
+          id: `S${i + 1}`,
+          code: `${pick(names)} ${String.fromCharCode(65 + i)}`,
+          terrain: terrainPrimary,
+          features,
+          controlledByPlayer: false,
+          visibility: 'unknown',
+          notes: '미탐색',
+          knownEnemy: null,
+          units: [],
+          lastReport: null
+        });
+      }
+
+      // Set a few deterministic mission-ish highlights.
+      sectors[1].features = ['ridge'];
+      sectors[4].features = ['valley', 'forest'];
+      sectors[7].features = ['swamp'];
+      sectors[10].features = ['river', 'plain'];
+      sectors[9].features = ['forest', 'ridge'];
+
+      // Objective / supply points.
+      sectors[2].controlledByPlayer = true;
+      sectors[2].lastReport = '아군 보급 거점';
+      sectors[5].lastReport = '중립 기지 흔적';
+
+      return sectors;
+    }
+
+    function createUnit(typeKey, name, sectorId, level = 1) {
+      const t = UNIT_TYPES[typeKey];
+      return {
+        id: `U${Math.random().toString(36).slice(2, 8)}`,
+        typeKey,
+        name,
+        sectorId,
+        level,
+        health: t.maxHealth,
+        food: t.food,
+        ammo: t.ammo,
+        morale: 100,
+        commandMode: typeKey === 'recon' ? 'scout-return' : 'hold-support',
+        moveBuffer: 0,
+        status: 'active',
+        reportCooldown: 0,
+        experienced: 0,
+        order: null,
+        lastKnownSector: sectorId,
+        lastSeenTurn: 0,
+        origin: sectorId
+      };
+    }
+
+    function initGame() {
+      state.sectors = generateMap();
+      state.units = [
+        createUnit('recon', 'Alpha Recon', 'S1', 2),
+        createUnit('infantry', 'Bravo Infantry', 'S3', 1),
+        createUnit('artillery', 'Charlie Battery', 'S3', 1),
+        createUnit('recon', 'Delta Recon', 'S6', 3),
+      ];
+
+      state.sectors[0].controlledByPlayer = true;
+      state.sectors[0].lastReport = '지휘소';
+      state.sectors[3].knownEnemy = { class: 'B', size: 40, type: 'infantry' };
+      state.sectors[8].knownEnemy = { class: 'C', size: 20, type: 'armor' };
+      state.sectors[9].knownEnemy = { class: 'A', size: 12, type: 'artillery' };
+      syncUnitsToSectors();
+
+      addReport('HQ', '작전 개시', '작전이 시작되었다. 정찰, 통신, 보급 상태를 유지하라.');
+      addReport('Intel', '초기 관측', 'Charlie D에서 적 보병 부대가 마지막으로 관측되었다. Class B, 40 (platoon).');
+      addReport('Intel', '초기 관측', 'Juliet I 부근에서 적 포병이 포착되었다. Class A, 12.');
+      renderAll();
+    }
+
+    function syncUnitsToSectors() {
+      for (const sector of state.sectors) sector.units = [];
+      for (const unit of state.units) {
+        const sector = state.sectors.find(s => s.id === unit.sectorId);
+        if (sector) sector.units.push(unit.id);
+      }
+    }
+
+    function getUnitType(unit) {
+      return UNIT_TYPES[unit.typeKey];
+    }
+
+    function getSector(unitOrId) {
+      const id = typeof unitOrId === 'string' ? unitOrId : unitOrId.sectorId;
+      return state.sectors.find(s => s.id === id);
+    }
+
+    function sectorLabel(sector) {
+      const terrainNames = sector.features.map(f => TERRAIN_TYPES[f].label).join(' + ');
+      return `${sector.code} / ${terrainNames}`;
+    }
+
+    function reportSight(unit, sector, classTag, enemyType, size, note) {
+      const source = unit.name;
+      const body = `${sector.code}\n${enemyType}\n${size} (${classTag})\n${note || ''}`.trim();
+      addReport(source, '관측 보고', body, sector.id);
+      sector.lastReport = `${enemyType} / ${size} / ${classTag}`;
+      sector.visibility = classTag;
+    }
+
+    function updateVisibilityFromUnit(unit) {
+      const sector = getSector(unit);
+      if (!sector) return;
+      sector.controlledByPlayer = true;
+      sector.visibility = 'visible';
+      sector.lastReport = `${unit.name} 접촉`;
+    }
+
+    function visibleClassFromRecon(unit) {
+      const lvl = unit.level;
+      if (lvl >= 3) return 'A';
+      if (lvl === 2) return 'B';
+      return 'C';
+    }
+
+    function sizeBands(size) {
+      if (size >= 100) return 'battalion';
+      if (size >= 40) return 'company';
+      if (size >= 20) return 'platoon';
+      if (size >= 8) return 'section';
+      return 'small';
+    }
+
+    function nearestFriendlySupplyIndex(startId) {
+      const priority = state.sectors.filter(s => s.controlledByPlayer || s.lastReport === '아군 보급 거점');
+      if (priority.length === 0) return null;
+      // simple linear fallback based on array distance for prototype
+      const startIdx = state.sectors.findIndex(s => s.id === startId);
+      let best = null;
+      for (const sector of priority) {
+        const idx = state.sectors.findIndex(s => s.id === sector.id);
+        const dist = Math.abs(idx - startIdx);
+        if (!best || dist < best.dist) best = { id: sector.id, dist };
+      }
+      return best?.id ?? null;
+    }
+
+    function consumeResources(unit, sector) {
+      const terrainMovePenalty = sector.features.reduce((sum, f) => sum + (TERRAIN_TYPES[f].move - 1), 0);
+      const baseFoodUse = unit.typeKey === 'artillery' ? 0.12 : unit.typeKey === 'recon' ? 0.10 : 0.08;
+      const extra = terrainMovePenalty * 0.04;
+      unit.food = clamp(unit.food - (baseFoodUse + extra), 0, 100);
+      if (unit.ammo > 0 && unit.typeKey === 'artillery') {
+        unit.ammo = clamp(unit.ammo - 0.01, 0, 100);
+      }
+    }
+
+    function unitCombatPower(unit) {
+      const t = getUnitType(unit);
+      const healthFactor = unit.health / t.maxHealth;
+      const foodFactor = unit.food > 0 ? 1 : 0.5;
+      const min = t.attackMin;
+      const max = t.attackMax;
+      const low = Math.round(min * healthFactor * foodFactor);
+      const high = Math.max(low, Math.round(max * healthFactor * foodFactor));
+      return { low, high };
+    }
+
+    function rollPower(low, high) {
+      if (high <= low) return low;
+      return low + Math.floor(rand(rng) * (high - low + 1));
+    }
+
+    function resolveCombat(attacker, defender, sector) {
+      const atk = unitCombatPower(attacker);
+      const def = unitCombatPower(defender);
+      const attack = rollPower(atk.low, atk.high);
+      const defend = rollPower(def.low, def.high);
+      const damage = Math.max(0, attack - Math.floor(defend * 0.35));
+      const reverse = Math.max(0, defend - Math.floor(attack * 0.25));
+
+      attacker.health = clamp(attacker.health - reverse, 0, getUnitType(attacker).maxHealth);
+      defender.health = clamp(defender.health - damage, 0, getUnitType(defender).maxHealth);
+
+      const battleText = `${attacker.name} (${attack}) vs ${defender.name} (${defend})\n${attacker.name} 피해: ${reverse}\n${defender.name} 피해: ${damage}`;
+      addReport('Combat', `교전: ${sector.code}`, battleText, sector.id);
+
+      if (defender.health <= 0) {
+        addReport('Combat', '유닛 파괴', `${defender.name}가 ${sector.code}에서 소멸했다.`, sector.id);
+      }
+      if (attacker.health <= 0) {
+        addReport('Combat', '유닛 파괴', `${attacker.name}가 ${sector.code}에서 소멸했다.`, sector.id);
+      }
+    }
+
+    function maybeGenerateIntel(unit, sector) {
+      if (unit.reportCooldown > 0) return;
+      const classTag = visibleClassFromRecon(unit);
+      const enemy = sector.knownEnemy;
+      if (!enemy) {
+        if (rand(rng) < 0.12) {
+          addReport(unit.name, '정찰 결과', `${sector.code}\n가시한 적 없음.\nClass ${classTag}` , sector.id);
+          unit.reportCooldown = 8;
+        }
+        return;
+      }
+      const size = enemy.size;
+      const band = sizeBands(size);
+      reportSight(unit, sector, classTag, `Enemy ${enemy.type}`, `${size} (${band})`, '마지막 확인 위치를 갱신함.');
+      unit.reportCooldown = 12;
+    }
+
+    function unitIsConnected(unit) {
+      const sectorIdx = state.sectors.findIndex(s => s.id === unit.sectorId);
+      const originIdx = state.sectors.findIndex(s => s.id === unit.origin);
+      const dist = Math.abs(sectorIdx - originIdx);
+      const comm = getUnitType(unit).comm + Math.max(0, unit.level - 1);
+      return dist <= comm;
+    }
+
+    function advanceUnit(unit) {
+      if (unit.status !== 'active') return;
+      const sector = getSector(unit);
+      if (!sector) return;
+
+      if (unit.reportCooldown > 0) unit.reportCooldown -= 1;
+
+      consumeResources(unit, sector);
+      if (unit.food <= 0) {
+        unit.status = 'returning';
+      }
+
+      if (unit.health <= 0) {
+        unit.status = 'dead';
+        addReport('HQ', '손실', `${unit.name} 손실. 재편성 필요.`, sector.id);
+        return;
+      }
+
+      // Visibility / command logic.
+      const connected = unitIsConnected(unit);
+      const command = unit.commandMode;
+      const idx = state.sectors.findIndex(s => s.id === unit.sectorId);
+
+      if (unit.typeKey === 'recon') {
+        updateVisibilityFromUnit(unit);
+        maybeGenerateIntel(unit, sector);
+      }
+
+      // Exhaustion: automatically head home to nearest supply point.
+      if (unit.food <= 0 || unit.status === 'returning') {
+        const targetId = nearestFriendlySupplyIndex(unit.sectorId) || unit.origin;
+        if (targetId && unit.sectorId !== targetId) {
+          moveUnitTowards(unit, targetId);
+        } else {
+          if (unit.food <= 0) unit.food = 6; // tiny recovery at supply
+          if (unit.ammo > 0) unit.ammo = getUnitType(unit).ammo;
+          unit.status = 'active';
+          unit.commandMode = unit.typeKey === 'recon' ? 'scout-return' : 'hold-support';
+          addReport('HQ', '복귀', `${unit.name}가 보급 거점에 도착했다.`, sector.id);
+        }
+        return;
+      }
+
+      if (unit.typeKey === 'recon') {
+        if (connected && command === 'scout-return') {
+          // probe forward to a nearby sector and then come back.
+          const next = state.sectors[Math.min(state.sectors.length - 1, idx + 1 + Math.floor(rand(rng) * 2))];
+          if (next && next.id !== unit.sectorId) {
+            moveUnitTowards(unit, next.id);
+          }
+        } else if (!connected) {
+          // When isolated, drift toward origin/supply.
+          moveUnitTowards(unit, unit.origin);
+        }
+      }
+
+      if (unit.typeKey === 'infantry') {
+        if (connected && command === 'hold-support') {
+          // Hold position, but if enemy is in the sector, fight.
+          const enemy = sector.knownEnemy;
+          if (enemy && rand(rng) < 0.08) {
+            sector.knownEnemy.size = Math.max(0, enemy.size - 1);
+          }
+        }
+      }
+
+      if (unit.typeKey === 'artillery') {
+        if (sector.knownEnemy && unit.ammo > 0) {
+          const splash = 3 + Math.floor(rand(rng) * 5);
+          unit.ammo = clamp(unit.ammo - 1, 0, 100);
+          addReport(unit.name, '포격', `${sector.code}\n적 목표 타격\n피해 추정: ${splash}`, sector.id);
+          if (sector.knownEnemy.size > 0) {
+            sector.knownEnemy.size = Math.max(0, sector.knownEnemy.size - splash);
+          }
+        }
+      }
+
+      // Small chance of combat if enemy present.
+      if (sector.knownEnemy && unit.typeKey !== 'artillery' && rand(rng) < 0.10) {
+        const dummyDefender = {
+          name: `Enemy ${sector.knownEnemy.type}`,
+          typeKey: sector.knownEnemy.type === 'armor' ? 'artillery' : 'infantry',
+          health: 80,
+          food: 100,
+          ammo: 0
+        };
+        resolveCombat(unit, dummyDefender, sector);
+        if (dummyDefender.health <= 0) {
+          sector.knownEnemy = null;
+        }
+      }
+    }
+
+    function moveUnitTowards(unit, targetSectorId) {
+      const currentIdx = state.sectors.findIndex(s => s.id === unit.sectorId);
+      const targetIdx = state.sectors.findIndex(s => s.id === targetSectorId);
+      if (currentIdx < 0 || targetIdx < 0 || currentIdx === targetIdx) return;
+      const step = targetIdx > currentIdx ? 1 : -1;
+      const next = state.sectors[currentIdx + step];
+      if (!next) return;
+      const cost = next.features.reduce((sum, f) => sum + TERRAIN_TYPES[f].move, 0) / next.features.length;
+      unit.moveBuffer += 1;
+      if (unit.moveBuffer >= cost) {
+        const from = getSector(unit);
+        if (from) from.units = from.units.filter(u => u !== unit.id);
+        unit.sectorId = next.id;
+        unit.lastKnownSector = next.id;
+        unit.moveBuffer = 0;
+        next.units.push(unit.id);
+        unit.experienced += 1;
+        if (unit.typeKey === 'recon') {
+          next.lastReport = `${unit.name} 탐색`;
+        }
+      }
+    }
+
+    function tick() {
+      if (state.paused) return;
+      const sectorOrder = [...state.sectors];
+      for (const unit of state.units) {
+        advanceUnit(unit);
+      }
+      syncUnitsToSectors();
+      state.minutes += 1;
+
+      // Periodic front-level report.
+      if (state.minutes % 15 === 0) {
+        const threatened = state.sectors.find(s => s.knownEnemy && s.knownEnemy.size > 0);
+        if (threatened) {
+          addReport('HQ', '상황 갱신', `${threatened.code}\n적 전력 잔존: ${threatened.knownEnemy.size} (${threatened.knownEnemy.class})`, threatened.id);
+        }
+      }
+
+      renderAll();
+    }
+
+    function renderMap() {
+      const map = document.getElementById('map');
+      map.innerHTML = '';
+      state.sectors.forEach((sector) => {
+        const div = document.createElement('div');
+        div.className = 'sector' + (sector.id === state.selectedSectorId ? ' selected' : '');
+        const vis = territoryVisibility(sector);
+        const visibility = sector.visibility === 'unknown'
+          ? '미탐색'
+          : sector.visibility === 'visible'
+            ? '현재 관측'
+            : sector.visibility;
+        const unitList = sector.units.map(uid => {
+          const u = state.units.find(x => x.id === uid);
+          if (!u) return null;
+          const t = getUnitType(u);
+          return `<div class="unit-pill"><span class="unit-name">${u.name}</span><span class="unit-meta">${t.label} / HP ${Math.max(0, Math.round(u.health))} / F ${Math.round(u.food)}</span></div>`;
+        }).filter(Boolean).join('');
+
+        div.innerHTML = `
+          <div class="name"><span>${sector.code}</span><span class="tag">${sector.terrain.toUpperCase()}</span></div>
+          <div class="terrain">${sectorLabel(sector)}</div>
+          <div class="detail">가시성: ${visibility} · 지형 영향: ${vis >= 0 ? '+' : ''}${vis}</div>
+          <div class="detail">${sector.lastReport ? `최근: ${sector.lastReport}` : '최근: 없음'}</div>
+          <div class="units">${unitList || '<div class="detail">주둔 유닛 없음</div>'}</div>
+        `;
+        div.addEventListener('click', () => {
+          state.selectedSectorId = sector.id;
+          renderSidebar();
+          renderMap();
+        });
+        map.appendChild(div);
+      });
+    }
+
+    function renderSidebar() {
+      const selected = state.sectors.find(s => s.id === state.selectedSectorId) || state.sectors[0];
+      const selectedUnits = selected.units.map(uid => {
+        const u = state.units.find(x => x.id === uid);
+        return u ? `${u.name} (${getUnitType(u).label})` : null;
+      }).filter(Boolean);
+
+      document.getElementById('timeValue').textContent = formatTime(state.minutes);
+      document.getElementById('stateValue').textContent = state.paused ? 'Paused' : 'Running';
+      document.getElementById('reportCount').textContent = String(reportLog.length);
+      document.getElementById('unitCount').textContent = String(state.units.filter(u => u.status !== 'dead').length);
+
+      document.getElementById('selName').textContent = selected.code;
+      document.getElementById('selTerrain').textContent = selected.features.map(f => TERRAIN_TYPES[f].label).join(' / ');
+      document.getElementById('selVisibility').textContent = selected.visibility === 'unknown' ? '미탐색' : selected.visibility;
+      document.getElementById('selControl').textContent = selected.controlledByPlayer ? '아군 영향권' : '미확인';
+      document.getElementById('selUnits').textContent = selectedUnits.length ? selectedUnits.join(', ') : '없음';
+      document.getElementById('selReport').textContent = selected.lastReport || '-';
+
+      const log = document.getElementById('log');
+      log.innerHTML = '';
+      for (const report of reportLog.slice(0, 18)) {
+        const div = document.createElement('div');
+        div.className = 'report';
+        div.innerHTML = `
+          <div class="time">${formatTime(report.time)} · ${report.title}</div>
+          <div class="source">From: ${report.source}</div>
+          <div class="body">${escapeHtml(report.body)}</div>
+        `;
+        if (report.sectorId) {
+          div.style.borderColor = report.sectorId === state.selectedSectorId ? 'rgba(143,199,255,0.5)' : '';
+        }
+        log.appendChild(div);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function renderAll() {
+      renderMap();
+      renderSidebar();
+      document.getElementById('speedLabel').textContent = `${state.speed}x`;
+      document.querySelectorAll('button[data-speed]').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.speed) === state.speed);
+      });
+      document.getElementById('pauseBtn').textContent = state.paused ? 'Resume' : 'Pause';
+    }
+
+    // Controls
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      state.paused = !state.paused;
+      renderAll();
+    });
+
+    document.querySelectorAll('button[data-speed]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.speed = Number(btn.dataset.speed);
+        renderAll();
+      });
+    });
+
+    // Main loop
+    function loop(now) {
+      const elapsed = now - state.lastTickAt;
+      const stepMs = 750 / state.speed;
+      if (!state.paused && elapsed >= stepMs) {
+        const ticks = Math.max(1, Math.floor(elapsed / stepMs));
+        for (let i = 0; i < ticks; i++) tick();
+        state.lastTickAt = now;
+      }
+      requestAnimationFrame(loop);
+    }
+
+    initGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
