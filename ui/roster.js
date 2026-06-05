@@ -2,8 +2,8 @@
 // Unit roster panel: lists all friendly units with their current activity so the
 // player can scan the force at a glance and jump to any unit on the map.
 
-import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=26';
-import { codeForSector } from '../data/map.js?v=26';
+import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=27';
+import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
   return String(value ?? '')

@@ -4,16 +4,16 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js?v=26';
-import { Sector } from './sector.js?v=26';
-import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=26';
+import { MAP, getSectorById } from '../data/map.js?v=27';
+import { Sector } from './sector.js?v=27';
+import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=27';
 import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
   isUnitAlive,
   unitLabel
-} from './unit.js?v=26';
+} from './unit.js?v=27';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -321,6 +321,120 @@ export class Simulation {
     return null;
   }
 
+  // Multi-source BFS over the sector graph: returns a Map of sectorId -> hop
+  // distance from the nearest source sector.
+  _hopDistanceFrom(sourceSectorIds) {
+    const dist = new Map();
+    const queue = [];
+    for (const id of sourceSectorIds) {
+      if (this.sectors.has(id) && !dist.has(id)) {
+        dist.set(id, 0);
+        queue.push(id);
+      }
+    }
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const neighbors = this.getSector(current)?.neighbors ?? [];
+      for (const next of neighbors) {
+        if (!this.sectors.has(next) || dist.has(next)) continue;
+        dist.set(next, dist.get(current) + 1);
+        queue.push(next);
+      }
+    }
+    return dist;
+  }
+
+  // Communication range in sector hops. A unit is connected if it can reach a
+  // comm anchor through a relay chain of connected units, each link within
+  // range. Positioning units as relays extends the network.
+  get commRange() {
+    return this._commRange ?? 2;
+  }
+
+  // Recomputes which units are connected to the comm network and flushes any
+  // buffered reports for units that just reconnected. Run once per tick before
+  // units act.
+  _recomputeComm() {
+    const anchors = this.commAnchors.map((a) => a.sectorId).filter((id) => this.sectors.has(id));
+    const aliveUnits = this.listUnits().filter((u) => isUnitAlive(u));
+    const R = this.commRange;
+
+    // Relay-chain fixpoint: seed sources with anchors, then iteratively connect
+    // any unit within R hops of a current source and add its sector as a source.
+    const sources = new Set(anchors);
+    const connected = new Set();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const dist = this._hopDistanceFrom(sources);
+      for (const unit of aliveUnits) {
+        if (connected.has(unit.id)) continue;
+        const d = dist.get(unit.sectorId);
+        if (d !== undefined && d <= R) {
+          connected.add(unit.id);
+          sources.add(unit.sectorId);
+          changed = true;
+        }
+      }
+    }
+
+    for (const unit of aliveUnits) {
+      const nowConnected = connected.has(unit.id);
+      const wasConnected = unit.commConnected;
+      unit.commConnected = nowConnected;
+      if (nowConnected && !wasConnected) {
+        this._flushCommBuffer(unit);
+      }
+    }
+  }
+
+  // Delivers a report now if the unit is connected, otherwise buffers it on the
+  // unit (along with the sector-state mutation) until comms are restored.
+  // `apply` performs the shared-knowledge update (enemy summary, alert, etc.).
+  _deliverOrBuffer(unit, report, apply) {
+    if (unit.commConnected) {
+      if (typeof apply === 'function') apply();
+      this.addReport(report);
+      return;
+    }
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    if (!Array.isArray(unit.meta.commBuffer)) unit.meta.commBuffer = [];
+    unit.meta.commBuffer.push({ report, apply });
+  }
+
+  // Flushes a reconnected unit's buffered reports: applies their delayed
+  // sector updates and posts the reports, tagged as delayed.
+  _flushCommBuffer(unit) {
+    const buffer = Array.isArray(unit.meta?.commBuffer) ? unit.meta.commBuffer : [];
+    if (buffer.length === 0) return;
+
+    for (const entry of buffer) {
+      if (typeof entry.apply === 'function') entry.apply();
+      const report = entry.report;
+      if (report) {
+        if (!Array.isArray(report.tags)) report.tags = [];
+        if (!report.tags.includes('delayed')) report.tags.push('delayed');
+        report.summary = `${report.summary ?? '보고'} (지연 전달)`;
+        this.addReport(report);
+      }
+    }
+
+    this.addReport(new Report({
+      time: this.time,
+      source: 'HQ',
+      sectorId: unit.sectorId,
+      sectorCode: this.getSector(unit.sectorId)?.code ?? null,
+      kind: REPORT_KINDS.STATUS,
+      classTag: REPORT_CLASS.C,
+      summary: '통신 복구',
+      body: `${unit.name}\n통신 재연결 · 밀린 보고 ${buffer.length}건 수신`,
+      tags: ['comm', 'reconnect'],
+      meta: { unitId: unit.id, flushed: buffer.length }
+    }));
+
+    unit.meta.commBuffer = [];
+  }
+
   _moveUnitTowards(unit, targetSectorId) {
     if (!unit || !targetSectorId || !unit.isAlive) return false;
     if (unit.sectorId === targetSectorId) return false;
@@ -346,23 +460,26 @@ export class Simulation {
     unit.lastKnownSectorId = nextSector.id;
     this._attachUnitToSector(unit, nextSector.id);
 
-    this.addReport(new Report({
-      time: this.time,
-      source: unit.name,
-      sectorId: nextSector.id,
-      sectorCode: nextSector.code,
-      kind: REPORT_KINDS.STATUS,
-      classTag: reportClassFromLevel(unit.level),
-      summary: '이동 보고',
-      body: `${unit.name}\n${currentSector.code} → ${nextSector.code}`,
-      tags: ['movement', unit.type],
-      meta: {
-        unitId: unit.id,
-        from: currentSector.id,
-        to: nextSector.id,
-        terrain: nextSector.terrain
-      }
-    }));
+    // Movement updates only reach HQ when the unit is connected.
+    if (unit.commConnected) {
+      this.addReport(new Report({
+        time: this.time,
+        source: unit.name,
+        sectorId: nextSector.id,
+        sectorCode: nextSector.code,
+        kind: REPORT_KINDS.STATUS,
+        classTag: reportClassFromLevel(unit.level),
+        summary: '이동 보고',
+        body: `${unit.name}\n${currentSector.code} → ${nextSector.code}`,
+        tags: ['movement', unit.type],
+        meta: {
+          unitId: unit.id,
+          from: currentSector.id,
+          to: nextSector.id,
+          terrain: nextSector.terrain
+        }
+      }));
+    }
 
     return true;
   }
@@ -457,11 +574,11 @@ export class Simulation {
     const classTag = reportClassFromLevel(unit.level);
     const hiddenEnemy = sector.hiddenEnemySummary ?? sector.enemySummary;
 
+    // The shared-knowledge update (enemy summary, alert, control) is captured in
+    // an `apply` closure so it only takes effect when the report is actually
+    // delivered to HQ — buffered while the unit is out of comms.
     if (!hiddenEnemy) {
-      sector.setAlert(false);
-      sector.setControl('visible');
-      sector.setReportSummary('적 미확인');
-      this.addReport(new Report({
+      const report = new Report({
         time: this.time,
         source: unit.name,
         sectorId: sector.id,
@@ -472,7 +589,12 @@ export class Simulation {
         body: `${sector.code}\n적 미확인`,
         tags: ['recon', 'no-contact'],
         meta: { unitId: unit.id, sectorTerrain: sector.terrain }
-      }));
+      });
+      this._deliverOrBuffer(unit, report, () => {
+        sector.setAlert(false);
+        sector.setControl('visible');
+        sector.setReportSummary('적 미확인');
+      });
       return;
     }
 
@@ -481,12 +603,7 @@ export class Simulation {
     const sizeLabel = formatSizeLabel(size);
     const enemy = { ...clonePlainObject(hiddenEnemy), size, sizeLabel, class: classTag };
 
-    sector.setEnemySummary(enemy);
-    sector.setAlert(true, `적 ${enemy.type} 보고`);
-    sector.setReportSummary(`적 ${enemy.type} 보고`);
-    sector.setControl('revealed');
-
-    this.addReport(new Report({
+    const report = new Report({
       time: this.time,
       source: unit.name,
       sectorId: sector.id,
@@ -500,7 +617,13 @@ export class Simulation {
       pinned: true,
       tags: ['recon', enemy.type, classTag],
       meta: { unitId: unit.id, sectorTerrain: sector.terrain }
-    }));
+    });
+    this._deliverOrBuffer(unit, report, () => {
+      sector.setEnemySummary(enemy);
+      sector.setAlert(true, `적 ${enemy.type} 보고`);
+      sector.setReportSummary(`적 ${enemy.type} 보고`);
+      sector.setControl('revealed');
+    });
   }
 
   _resolveCombat(attacker, sector) {
@@ -608,18 +731,15 @@ export class Simulation {
     }
 
     if (unit.type === UNIT_TYPES.RECON) {
-      const connected = unit.commConnected;
-
-      if (connected && unit.command.includes('정찰')) {
+      // A disconnected unit keeps carrying out its standing orders; only NEW
+      // commands cannot reach it, and its reports are buffered until comms
+      // are restored (handled in _deliverOrBuffer / _flushCommBuffer).
+      if (unit.command.includes('정찰')) {
         if (unit.targetSectorId && unit.sectorId !== unit.targetSectorId) {
           this._moveUnitTowards(unit, unit.targetSectorId);
         } else {
           this._tickRecon(unit, sector);
         }
-      } else if (!connected) {
-        unit.setStatus(UNIT_STATUS.DISCONNECTED);
-        const fallback = this._nearestSupplySectorId(unit.sectorId) ?? unit.originSectorId ?? unit.sectorId;
-        this._moveUnitTowards(unit, fallback);
       }
 
       return;
@@ -694,6 +814,9 @@ export class Simulation {
 
     // Re-derive supply nodes occasionally in case the UI or future systems alter control.
     this._deriveSupplyNodes();
+
+    // Refresh comm connectivity (and flush buffers on reconnect) before units act.
+    this._recomputeComm();
 
     // Main loop.
     for (const unit of this.units.values()) {
@@ -777,6 +900,9 @@ export class Simulation {
   issueReconOrder(unitId, targetSectorId) {
     const unit = this.getUnit(unitId);
     if (!unit || !unit.isAlive) return null;
+
+    // New orders cannot reach a unit that is out of comms.
+    if (!unit.commConnected) return { blocked: 'disconnected', unitId };
 
     const currentSector = this.getSector(unit.sectorId);
     const validTargets = [unit.sectorId, ...(currentSector?.neighbors ?? [])];

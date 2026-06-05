@@ -3,7 +3,7 @@
 // Keeps the NATO-style symbology and human-readable activity text in one place
 // so the map view and the unit roster stay consistent.
 
-import { codeForSector } from '../data/map.js?v=26';
+import { codeForSector } from '../data/map.js?v=27';
 
 // Report cadence by unit level (mirrors Simulation._reportInterval).
 const REPORT_INTERVAL_BY_LEVEL = [20, 14, 9, 6, 4];
@@ -23,8 +23,10 @@ export function unitSymbolKind(type) {
 // Friendly counter palette, adjusted by status tone.
 export function unitTone(unit) {
   const status = String(unit?.status ?? 'active').toLowerCase();
+  const disconnected = unit?.commConnected === false;
   if (status === 'dead') return { fill: 'rgba(70,70,78,0.85)', stroke: 'rgba(120,120,130,0.9)', warn: false };
-  if (status === 'disconnected') return { fill: 'rgba(46,92,150,0.9)', stroke: 'rgba(235,180,90,0.95)', warn: true };
+  // Comm loss is the most operationally relevant warning state to surface.
+  if (disconnected) return { fill: 'rgba(46,92,150,0.9)', stroke: 'rgba(235,180,90,0.95)', warn: true };
   if (status === 'exhausted' || status === 'hungry') return { fill: 'rgba(46,92,150,0.9)', stroke: 'rgba(230,140,90,0.95)', warn: true };
   if (status === 'engaged') return { fill: 'rgba(120,60,70,0.92)', stroke: 'rgba(255,120,120,0.96)', warn: true };
   if (status === 'returning') return { fill: 'rgba(46,92,150,0.9)', stroke: 'rgba(200,200,120,0.95)', warn: true };
@@ -33,12 +35,21 @@ export function unitTone(unit) {
 
 // Short, human-readable description of what a unit is doing right now.
 // Returns { text, tone } where tone is 'idle' | 'move' | 'setup' | 'recon' | 'warn'.
+// A disconnected unit keeps carrying out its standing orders, so the base
+// activity is shown with a "통신두절" suffix rather than being replaced.
 export function describeUnitActivity(unit) {
   if (!unit) return { text: '-', tone: 'idle' };
 
+  const base = baseActivity(unit);
+  if (unit.commConnected === false && String(unit.status ?? '').toLowerCase() !== 'dead') {
+    return { text: `${base.text} · 통신두절`, tone: 'warn' };
+  }
+  return base;
+}
+
+function baseActivity(unit) {
   const status = String(unit.status ?? 'active').toLowerCase();
   if (status === 'dead') return { text: '전투 손실', tone: 'warn' };
-  if (status === 'disconnected') return { text: '통신 두절', tone: 'warn' };
   if (status === 'exhausted') return { text: '보급 복귀', tone: 'warn' };
   if (status === 'returning') return { text: '복귀 중', tone: 'warn' };
   if (status === 'engaged') return { text: '교전 중', tone: 'warn' };

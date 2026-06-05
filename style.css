@@ -793,3 +793,9 @@ body{
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
+
+.sf-recon-note {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #ffa078;
+}

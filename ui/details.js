@@ -4,9 +4,9 @@
 // This module renders the selected sector details, recent reports,
 // unit summaries, and operational notes into the right-side panel.
 
-import { getSectorById, codeForSector } from '../data/map.js?v=26';
-import { formatTime } from '../game/report.js?v=26';
-import { unitLabel } from '../game/unit.js?v=26';
+import { getSectorById, codeForSector } from '../data/map.js?v=27';
+import { formatTime } from '../game/report.js?v=27';
+import { unitLabel } from '../game/unit.js?v=27';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -206,12 +206,17 @@ export class DetailPanel {
 
     const sectorNeighbors = Array.isArray(sector.neighbors) ? sector.neighbors : [];
     const buttons = [];
+    const notes = [];
 
     for (const unit of reconUnits) {
-      const unitSector = allUnits.length > 0 ? unit.sectorId : null;
+      const disconnected = unit.commConnected === false;
 
       if (unit.sectorId === sector.id) {
         // 유닛이 이 구역에 있음 → 이웃 구역들을 타깃으로
+        if (disconnected) {
+          notes.push(`${escapeHtml(unit.name)} · 통신 두절 — 명령 불가`);
+          continue;
+        }
         for (const neighborId of sectorNeighbors) {
           const neighborSector = Array.isArray(state.sectors)
             ? state.sectors.find((s) => s.id === neighborId)
@@ -230,6 +235,10 @@ export class DetailPanel {
           return Array.isArray(us?.neighbors) ? us.neighbors : [];
         })();
         if (unitNeighbors.includes(sector.id)) {
+          if (disconnected) {
+            notes.push(`${escapeHtml(unit.name)} · 통신 두절 — 명령 불가`);
+            continue;
+          }
           buttons.push(
             `<button class="btn sf-recon-btn" data-unit-id="${escapeHtml(unit.id)}" data-sector-id="${escapeHtml(sector.id)}">${escapeHtml(unit.name)} → ${escapeHtml(sector.code || sector.id)} 정찰</button>`
           );
@@ -237,12 +246,17 @@ export class DetailPanel {
       }
     }
 
-    if (buttons.length === 0) return '';
+    if (buttons.length === 0 && notes.length === 0) return '';
+
+    const notesHtml = notes.length > 0
+      ? `<div class="sf-recon-note">${notes.join('<br>')}</div>`
+      : '';
 
     return `
       <div class="sf-detail-block sf-recon-block">
         <div class="sf-detail-block-title">정찰 명령</div>
         <div class="sf-recon-actions">${buttons.join('')}</div>
+        ${notesHtml}
       </div>
     `;
   }

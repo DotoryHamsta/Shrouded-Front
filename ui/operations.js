@@ -8,9 +8,9 @@
 // - supply and communication state
 // - command / mission summaries
 
-import { formatTime } from '../game/report.js?v=26';
-import { unitLabel } from '../game/unit.js?v=26';
-import { codeForSector } from '../data/map.js?v=26';
+import { formatTime } from '../game/report.js?v=27';
+import { unitLabel } from '../game/unit.js?v=27';
+import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
   return String(value ?? '')
