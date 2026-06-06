@@ -7,10 +7,14 @@ import {
   NON_LEADER_ROLE_IDS,
   PERSONNEL_ROLES,
   TOTAL_PERSONNEL_LIMIT,
+  CAPABILITY_KEYS,
+  CAPABILITY_LABELS,
   assignedByRole,
   availableByRole,
   buildUnitsFromDrafts,
+  capabilityBand,
   clonePool,
+  computeFormationCapabilities,
   draftPersonnelCount,
   leaderById,
   missionRoleForComposition,
@@ -18,8 +22,8 @@ import {
   normalizePool,
   poolTotal,
   roleLabel
-} from '../game/formation.js?v=30';
-import { MISSION_ROLE_LABELS } from '../game/unit.js?v=30';
+} from '../game/formation.js?v=31';
+import { MISSION_ROLE_LABELS } from '../game/unit.js?v=31';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -49,6 +53,24 @@ function roleStepper({ roleId, value, disabledDec = false, disabledInc = false, 
       <button type="button" data-setup-action="${context}-dec" data-role="${escapeHtml(roleId)}"${attrs} ${disabledDec ? 'disabled' : ''}>-</button>
       <strong>${escapeHtml(value)}</strong>
       <button type="button" data-setup-action="${context}-inc" data-role="${escapeHtml(roleId)}"${attrs} ${disabledInc ? 'disabled' : ''}>+</button>
+    </div>
+  `;
+}
+
+function capabilityBars(capabilities = {}) {
+  return `
+    <div class="sf-capability-grid">
+      ${CAPABILITY_KEYS.map((key) => {
+        const value = Math.max(0, Math.min(100, Math.round(capabilities[key] ?? 0)));
+        const band = capabilityBand(value);
+        return `
+          <div class="sf-capability-row ${escapeHtml(band.tone)}">
+            <span>${escapeHtml(CAPABILITY_LABELS[key] ?? key)}</span>
+            <div><i style="width:${value}%"></i></div>
+            <strong>${escapeHtml(value)}</strong>
+          </div>
+        `;
+      }).join('')}
     </div>
   `;
 }
@@ -303,6 +325,7 @@ export class FormationSetup {
     const missionRole = missionRoleForComposition(draft.composition);
     const roleText = MISSION_ROLE_LABELS[missionRole] ?? missionRole;
     const leaderOnly = countNonLeader(draft) === 0;
+    const capabilities = computeFormationCapabilities({ leader: 1, ...draft.composition }, leader);
 
     return `
       <article class="sf-draft-card ${leaderOnly ? 'warn' : ''}">
@@ -316,6 +339,8 @@ export class FormationSetup {
             <span>${escapeHtml(leader.traitLabel)} · Lv${escapeHtml(leader.rating)}</span>
           </div>
         </div>
+
+        ${capabilityBars(capabilities)}
 
         <div class="sf-draft-roles">
           ${NON_LEADER_ROLE_IDS.map((roleId) => {

@@ -63,6 +63,14 @@ export const PERSONNEL_ROLE_LABELS = Object.freeze({
   weapons: '화기병'
 });
 
+const CAPABILITY_KEYS = Object.freeze([
+  'recon',
+  'communication',
+  'combat',
+  'sustainment',
+  'mobility'
+]);
+
 export const UNIT_TEMPLATES = Object.freeze({
   [UNIT_TYPES.RECON]: {
     label: '정찰병',
@@ -195,6 +203,31 @@ function echelonFromCount(count) {
   return 'company';
 }
 
+function defaultCapabilitiesForType(type) {
+  if (type === UNIT_TYPES.RECON) {
+    return { recon: 62, communication: 54, combat: 42, sustainment: 50, mobility: 66 };
+  }
+  if (type === UNIT_TYPES.ARTILLERY) {
+    return { recon: 24, communication: 52, combat: 72, sustainment: 44, mobility: 26 };
+  }
+  return { recon: 34, communication: 46, combat: 62, sustainment: 50, mobility: 42 };
+}
+
+function normalizeCapabilities(capabilities, type) {
+  const source = capabilities && typeof capabilities === 'object' ? capabilities : {};
+  const defaults = defaultCapabilitiesForType(type);
+  return CAPABILITY_KEYS.reduce((acc, key) => {
+    const value = Number(source[key] ?? defaults[key] ?? 50);
+    acc[key] = clamp(Number.isFinite(value) ? Math.round(value) : 50, 0, 100);
+    return acc;
+  }, {});
+}
+
+function capabilityFactor(score, swing = 0.12) {
+  const value = clamp(Number(score ?? 50), 0, 100);
+  return clamp(1 + ((value - 50) / 50) * swing, 1 - swing, 1 + swing);
+}
+
 export class Unit {
   constructor({
     id = nextUnitId(),
@@ -204,6 +237,7 @@ export class Unit {
     missionRole = null,
     composition = null,
     echelon = null,
+    capabilities = null,
     level = 1,
     maxHealth = null,
     health = null,
@@ -241,6 +275,7 @@ export class Unit {
     }
     this.personnelCount = compositionCount(this.composition);
     this.echelon = echelon ?? echelonFromCount(this.personnelCount);
+    this.capabilities = normalizeCapabilities(capabilities, this.type);
     this.sectorId = sectorId;
     this.originSectorId = originSectorId ?? sectorId;
     this.level = Math.max(1, Math.floor(level));
@@ -376,18 +411,20 @@ export class Unit {
 
   get combatMultiplier() {
     const leaderBonus = this.leaderTrait === LEADER_TRAITS.ASSAULT ? 1.06 : 1;
-    if (this.isExhausted) return 0.35 * this.cohesionFactor;
-    if (this.isHungry) return 0.7 * this.cohesionFactor;
-    if (this.fatigue >= 75) return 0.8 * this.cohesionFactor * leaderBonus;
-    return this.cohesionFactor * leaderBonus;
+    const formationBonus = capabilityFactor(this.capabilities.combat, 0.14);
+    if (this.isExhausted) return 0.35 * this.cohesionFactor * formationBonus;
+    if (this.isHungry) return 0.7 * this.cohesionFactor * formationBonus;
+    if (this.fatigue >= 75) return 0.8 * this.cohesionFactor * leaderBonus * formationBonus;
+    return this.cohesionFactor * leaderBonus * formationBonus;
   }
 
   get defenseMultiplier() {
     const leaderBonus = this.leaderTrait === LEADER_TRAITS.CAREFUL ? 1.06 : 1;
-    if (this.isExhausted) return 0.4 * this.cohesionFactor;
-    if (this.isHungry) return 0.75 * this.cohesionFactor;
-    if (this.fatigue >= 75) return 0.85 * this.cohesionFactor * leaderBonus;
-    return this.cohesionFactor * leaderBonus;
+    const formationBonus = capabilityFactor((this.capabilities.combat + this.capabilities.sustainment) / 2, 0.12);
+    if (this.isExhausted) return 0.4 * this.cohesionFactor * formationBonus;
+    if (this.isHungry) return 0.75 * this.cohesionFactor * formationBonus;
+    if (this.fatigue >= 75) return 0.85 * this.cohesionFactor * leaderBonus * formationBonus;
+    return this.cohesionFactor * leaderBonus * formationBonus;
   }
 
   get cohesionFactor() {
@@ -414,7 +451,8 @@ export class Unit {
     const healthFactor = this.health / this.maxHealth;
     const foodFactor = this.food > 0 ? 1 : 0.6;
     const moraleFactor = this.morale / 100;
-    return clamp(Math.round(100 * healthFactor * foodFactor * moraleFactor * this.cohesionFactor), 0, 100);
+    const sustainmentFactor = capabilityFactor(this.capabilities.sustainment, 0.08);
+    return clamp(Math.round(100 * healthFactor * foodFactor * moraleFactor * this.cohesionFactor * sustainmentFactor), 0, 100);
   }
 
   get summary() {
@@ -431,6 +469,7 @@ export class Unit {
       composition: { ...this.composition },
       personnelCount: this.personnelCount,
       echelon: this.echelon,
+      capabilities: { ...this.capabilities },
       health: this.health,
       food: this.food,
       ammo: this.ammo,
@@ -739,6 +778,7 @@ export class Unit {
       composition: { ...this.composition },
       personnelCount: this.personnelCount,
       echelon: this.echelon,
+      capabilities: { ...this.capabilities },
       level: this.level,
       maxHealth: this.maxHealth,
       maxFood: this.maxFood,

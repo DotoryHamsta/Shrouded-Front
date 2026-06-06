@@ -13,11 +13,11 @@ import {
   UNIT_STATUS,
   LEADER_TRAITS,
   isUnitAlive
-} from './unit.js?v=30';
+} from './unit.js?v=31';
 import {
   DEFAULT_COMM_ANCHORS,
   buildDefaultFormationUnits
-} from './formation.js?v=30';
+} from './formation.js?v=31';
 
 export const SIM_MINUTES_PER_TICK = 15;
 
@@ -327,6 +327,37 @@ export class Simulation {
     return 1;
   }
 
+  _capabilityScore(unit, key, fallback = 50) {
+    const value = Number(unit?.capabilities?.[key]);
+    return clamp(Number.isFinite(value) ? value : fallback, 0, 100);
+  }
+
+  _weightedCapability(unit, weights = {}) {
+    let totalWeight = 0;
+    let total = 0;
+    for (const [key, weight] of Object.entries(weights)) {
+      const safeWeight = Math.max(0, Number(weight) || 0);
+      if (safeWeight <= 0) continue;
+      totalWeight += safeWeight;
+      total += this._capabilityScore(unit, key) * safeWeight;
+    }
+    return totalWeight > 0 ? total / totalWeight : 50;
+  }
+
+  _capabilityDelayFactor(score, { bonus = 0.18, penalty = 0.14 } = {}) {
+    const value = clamp(Number(score ?? 50), 0, 100);
+    if (value >= 50) return clamp(1 - ((value - 50) / 50) * bonus, 1 - bonus, 1);
+    return clamp(1 + ((50 - value) / 50) * penalty, 1, 1 + penalty);
+  }
+
+  _effectiveReconLevel(unit) {
+    const recon = this._capabilityScore(unit, 'recon');
+    const communication = this._capabilityScore(unit, 'communication');
+    const bonus = recon >= 76 && communication >= 55 ? 1 : 0;
+    const penalty = recon < 38 ? 1 : 0;
+    return clamp((unit?.level ?? 1) + bonus - penalty, 1, 5);
+  }
+
   _unitActivity(unit) {
     const moving = Boolean(unit?.targetSectorId && unit.sectorId !== unit.targetSectorId);
     const reconning = unit?.type === UNIT_TYPES.RECON && String(unit.command ?? '').includes('정찰');
@@ -353,14 +384,26 @@ export class Simulation {
     const reduction = (Math.min(unit.level, 5) - 1) * 0.12;
     const cohesionDelay = this._cohesionDelayFactor(unit, 0.32);
     const leaderFactor = this._leaderFactor(unit, 'reconSetup');
-    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction) * cohesionDelay * leaderFactor));
+    const capabilityFactor = this._capabilityDelayFactor(this._capabilityScore(unit, 'recon'), {
+      bonus: 0.24,
+      penalty: 0.16
+    });
+    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction) * cohesionDelay * leaderFactor * capabilityFactor));
   }
 
   _reportIntervalMinutes(unit) {
     const base = REPORT_INTERVAL_MINUTES_BY_LEVEL[Math.min(unit.level - 1, REPORT_INTERVAL_MINUTES_BY_LEVEL.length - 1)];
     const cohesionDelay = this._cohesionDelayFactor(unit, 0.22);
     const leaderFactor = this._leaderFactor(unit, 'reconReport');
-    return roundToTickMinutes(base * cohesionDelay * leaderFactor);
+    const reportCapability = this._weightedCapability(unit, {
+      communication: 0.65,
+      recon: 0.35
+    });
+    const capabilityFactor = this._capabilityDelayFactor(reportCapability, {
+      bonus: 0.22,
+      penalty: 0.16
+    });
+    return roundToTickMinutes(base * cohesionDelay * leaderFactor * capabilityFactor);
   }
 
   _movementMinutesToEnter(sector, unit) {
@@ -368,7 +411,11 @@ export class Simulation {
     const moveFactor = 2 / Math.max(1, unit?.move ?? 2);
     const cohesionDelay = this._cohesionDelayFactor(unit, 0.2);
     const leaderFactor = this._leaderFactor(unit, 'movement');
-    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor));
+    const capabilityFactor = this._capabilityDelayFactor(this._capabilityScore(unit, 'mobility'), {
+      bonus: 0.2,
+      penalty: 0.18
+    });
+    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor * capabilityFactor));
   }
 
   _pathToTarget(fromId, targetId) {
@@ -586,16 +633,27 @@ export class Simulation {
     return this._commRange ?? 2;
   }
 
+  _commRangeForUnit(unit) {
+    const communication = this._capabilityScore(unit, 'communication');
+    const bonus = communication >= 78
+      ? 2
+      : communication >= 58
+        ? 1
+        : communication < 35
+          ? -1
+          : 0;
+    return clamp(this.commRange + bonus, 1, 4);
+  }
+
   // Recomputes which units are connected to the comm network and flushes any
   // buffered reports for units that just reconnected. Run once per tick before
   // units act.
   _recomputeComm() {
     const anchors = this.commAnchors.map((a) => a.sectorId).filter((id) => this.sectors.has(id));
     const aliveUnits = this.listUnits().filter((u) => isUnitAlive(u));
-    const R = this.commRange;
 
     // Relay-chain fixpoint: seed sources with anchors, then iteratively connect
-    // any unit within R hops of a current source and add its sector as a source.
+    // units whose communication capability can reach the current source chain.
     const sources = new Set(anchors);
     const connected = new Set();
     let changed = true;
@@ -605,7 +663,7 @@ export class Simulation {
       for (const unit of aliveUnits) {
         if (connected.has(unit.id)) continue;
         const d = dist.get(unit.sectorId);
-        if (d !== undefined && d <= R) {
+        if (d !== undefined && d <= this._commRangeForUnit(unit)) {
           connected.add(unit.id);
           sources.add(unit.sectorId);
           changed = true;
@@ -734,8 +792,12 @@ export class Simulation {
       returning: 1.15,
       engaged: 2.2
     }[activity] ?? 1.0;
+    const sustainmentFactor = this._capabilityDelayFactor(this._capabilityScore(unit, 'sustainment'), {
+      bonus: 0.16,
+      penalty: 0.14
+    });
 
-    return base * terrainMultiplier * activityMultiplier * this._leaderFactor(unit, 'sustainment');
+    return base * terrainMultiplier * activityMultiplier * this._leaderFactor(unit, 'sustainment') * sustainmentFactor;
   }
 
   _foodDrainForMinutes(unit, sector, activity, minutes) {
@@ -917,7 +979,8 @@ export class Simulation {
   }
 
   _generateReconReport(unit, sector) {
-    const classTag = reportClassFromLevel(unit.level);
+    const effectiveLevel = this._effectiveReconLevel(unit);
+    const classTag = reportClassFromLevel(effectiveLevel);
     const hiddenEnemy = sector.hiddenEnemySummary ?? sector.enemySummary;
 
     // The shared-knowledge update (enemy summary, alert, control) is captured in
@@ -945,7 +1008,7 @@ export class Simulation {
     }
 
     const rawSize = typeof hiddenEnemy.size === 'number' ? hiddenEnemy.size : 0;
-    const size = refineSizeByLevel(rawSize, unit.level);
+    const size = refineSizeByLevel(rawSize, effectiveLevel);
     const sizeLabel = formatSizeLabel(size);
     const enemy = { ...clonePlainObject(hiddenEnemy), size, sizeLabel, class: classTag };
 

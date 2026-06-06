@@ -1,12 +1,17 @@
-import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=31';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=32';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
 import { codeForSector } from './data/map.js?v=27';
-import { DEFAULT_COMM_ANCHORS } from './game/formation.js?v=30';
+import {
+  CAPABILITY_KEYS,
+  CAPABILITY_LABELS,
+  DEFAULT_COMM_ANCHORS,
+  capabilityBand
+} from './game/formation.js?v=31';
 import { createMapView } from './ui/map.js?v=31';
-import { createDetailPanel } from './ui/details.js?v=30';
-import { createOperationsBoard } from './ui/operations.js?v=30';
+import { createDetailPanel } from './ui/details.js?v=31';
+import { createOperationsBoard } from './ui/operations.js?v=31';
 import { createUnitRoster } from './ui/roster.js?v=30';
-import { createFormationSetup } from './ui/setup.js?v=30';
+import { createFormationSetup } from './ui/setup.js?v=31';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -311,6 +316,23 @@ function estimateLine(parts = []) {
   return parts.filter(Boolean).join(' · ');
 }
 
+function renderCapabilityChips(capabilities = {}) {
+  return `
+    <div class="sf-command-capabilities">
+      ${CAPABILITY_KEYS.map((key) => {
+        const value = Math.max(0, Math.min(100, Math.round(capabilities[key] ?? 0)));
+        const band = capabilityBand(value);
+        return `
+          <div class="${escapeHtml(band.tone)}">
+            <span>${escapeHtml(CAPABILITY_LABELS[key] ?? key)}</span>
+            <strong>${escapeHtml(value)}</strong>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function openUnitCommand() {
   if (!selectedUnitId) return;
   unitCommandOpen = true;
@@ -476,6 +498,8 @@ function renderUnitCommand() {
         <strong>${escapeHtml(unit.leader?.traitLabel ?? '안정 지휘')}</strong>
       </div>
     </div>
+
+    ${renderCapabilityChips(unit.capabilities)}
 
     <div class="sf-command-bars">
       <div class="sf-command-bar-row">

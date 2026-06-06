@@ -6,7 +6,7 @@ import {
   MISSION_ROLES,
   PERSONNEL_ROLE_LABELS,
   UNIT_TYPES
-} from './unit.js?v=30';
+} from './unit.js?v=31';
 
 export const TOTAL_PERSONNEL_LIMIT = 40;
 export const MISSION_START_SECTOR = 'D5';
@@ -71,6 +71,22 @@ export const PERSONNEL_ROLES = Object.freeze([
 export const NON_LEADER_ROLE_IDS = Object.freeze(
   PERSONNEL_ROLES.filter((role) => role.id !== 'leader').map((role) => role.id)
 );
+
+export const CAPABILITY_KEYS = Object.freeze([
+  'recon',
+  'communication',
+  'combat',
+  'sustainment',
+  'mobility'
+]);
+
+export const CAPABILITY_LABELS = Object.freeze({
+  recon: '정찰',
+  communication: '통신',
+  combat: '교전',
+  sustainment: '지속',
+  mobility: '기동'
+});
 
 export const LEADER_CANDIDATES = Object.freeze([
   {
@@ -139,6 +155,14 @@ function roleById(roleId) {
 
 function sanitizeCount(value) {
   return Math.max(0, Math.floor(Number(value) || 0));
+}
+
+function countRole(composition = {}, roleId) {
+  return sanitizeCount(composition?.[roleId]);
+}
+
+function roundedScore(value) {
+  return clamp(Math.round(value), 0, 100);
 }
 
 export function clonePool(pool = DEFAULT_POOL) {
@@ -270,6 +294,43 @@ export function missionRoleForComposition(composition = {}) {
   return MISSION_ROLES.SECURITY;
 }
 
+export function computeFormationCapabilities(composition = {}, leader = null) {
+  const total = Math.max(1, Object.values(composition).reduce((sum, count) => sum + sanitizeCount(count), 0));
+  const rifleman = countRole(composition, 'rifleman');
+  const scout = countRole(composition, 'scout');
+  const signal = countRole(composition, 'signal');
+  const medic = countRole(composition, 'medic');
+  const observer = countRole(composition, 'observer');
+  const weapons = countRole(composition, 'weapons');
+  const rating = clamp(Number(leader?.rating ?? 1), 1, 5);
+  const trait = leader?.trait ?? LEADER_TRAITS.STEADY;
+  const sizeDrag = Math.max(0, total - 6);
+
+  const traitBonus = {
+    recon: trait === LEADER_TRAITS.SCOUT ? 8 : trait === LEADER_TRAITS.CAREFUL ? 3 : 0,
+    communication: trait === LEADER_TRAITS.SIGNAL ? 10 : trait === LEADER_TRAITS.STEADY ? 3 : 0,
+    combat: trait === LEADER_TRAITS.ASSAULT ? 10 : trait === LEADER_TRAITS.STEADY ? 3 : 0,
+    sustainment: trait === LEADER_TRAITS.CAREFUL ? 8 : trait === LEADER_TRAITS.STEADY ? 3 : 0,
+    mobility: trait === LEADER_TRAITS.SCOUT ? 4 : trait === LEADER_TRAITS.CAREFUL ? -2 : 0
+  };
+
+  return {
+    recon: roundedScore(30 + scout * 10 + observer * 8 + signal * 3 + rating * 2 + traitBonus.recon - sizeDrag * 0.8),
+    communication: roundedScore(28 + signal * 14 + observer * 3 + rating * 3 + traitBonus.communication - sizeDrag * 0.3),
+    combat: roundedScore(28 + rifleman * 4 + weapons * 13 + total * 0.7 + rating * 2 + traitBonus.combat),
+    sustainment: roundedScore(34 + medic * 9 + signal * 2 + rating * 2 + traitBonus.sustainment - Math.max(0, total - 10) * 0.8),
+    mobility: roundedScore(72 + scout * 5 + rating * 1.5 + traitBonus.mobility - total * 2.2 - weapons * 6)
+  };
+}
+
+export function capabilityBand(score) {
+  const value = roundedScore(score);
+  if (value >= 75) return { label: '우수', tone: 'strong' };
+  if (value >= 58) return { label: '양호', tone: 'good' };
+  if (value >= 42) return { label: '보통', tone: 'fair' };
+  return { label: '취약', tone: 'weak' };
+}
+
 export function unitTypeForMissionRole(missionRole) {
   if (missionRole === MISSION_ROLES.RECON || missionRole === MISSION_ROLES.OBSERVER) {
     return UNIT_TYPES.RECON;
@@ -299,6 +360,7 @@ export function buildUnitsFromDrafts(drafts = [], pool = DEFAULT_POOL, { startSe
     const type = unitTypeForMissionRole(missionRole);
     const leader = leaderById(draft.leaderId);
     const maxHealth = Math.max(40, personnelCount * 10);
+    const capabilities = computeFormationCapabilities(composition, leader);
 
     return {
       type,
@@ -311,6 +373,7 @@ export function buildUnitsFromDrafts(drafts = [], pool = DEFAULT_POOL, { startSe
       maxHealth,
       health: maxHealth,
       level: leader.rating,
+      capabilities,
       command: '대기',
       cohesion: clamp(56 + leader.rating * 4, 0, 100),
       cohesionTarget: 88,

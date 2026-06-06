@@ -386,6 +386,58 @@ body{
   font-size:11px;
 }
 
+.sf-capability-grid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:6px;
+  margin-bottom:12px;
+}
+
+.sf-capability-row{
+  min-width:0;
+}
+
+.sf-capability-row span,
+.sf-capability-row strong{
+  display:block;
+  font-size:10px;
+  font-weight:800;
+}
+
+.sf-capability-row span{
+  overflow:hidden;
+  color:var(--muted);
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.sf-capability-row strong{
+  margin-top:3px;
+  color:#dce8f7;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+.sf-capability-row div{
+  height:5px;
+  margin-top:4px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(0,0,0,.38);
+}
+
+.sf-capability-row i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#8fbfff;
+}
+
+.sf-capability-row.strong i{ background:#9ee6b6; }
+.sf-capability-row.good i{ background:#8fbfff; }
+.sf-capability-row.fair i{ background:#ffd27a; }
+.sf-capability-row.weak i{ background:#ff9a86; }
+
 .sf-draft-roles{
   display:flex;
   flex-direction:column;
@@ -1020,6 +1072,47 @@ body{
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+
+.sf-command-capabilities{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:6px;
+}
+
+.sf-command-capabilities > div{
+  min-width:0;
+  padding:7px 6px;
+  border:1px solid rgba(48,65,85,.72);
+  border-radius:6px;
+  background:#111923;
+}
+
+.sf-command-capabilities span,
+.sf-command-capabilities strong{
+  display:block;
+  text-align:center;
+}
+
+.sf-command-capabilities span{
+  overflow:hidden;
+  color:var(--muted);
+  font-size:10px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.sf-command-capabilities strong{
+  margin-top:3px;
+  color:#dce8f7;
+  font-size:14px;
+  font-variant-numeric:tabular-nums;
+}
+
+.sf-command-capabilities .strong strong{ color:#9ee6b6; }
+.sf-command-capabilities .good strong{ color:#8fbfff; }
+.sf-command-capabilities .fair strong{ color:#ffd27a; }
+.sf-command-capabilities .weak strong{ color:#ff9a86; }
 
 .sf-command-bars{
   margin-top:12px;

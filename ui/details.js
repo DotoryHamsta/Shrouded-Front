@@ -6,7 +6,7 @@
 
 import { getSectorById, codeForSector } from '../data/map.js?v=27';
 import { formatTime } from '../game/report.js?v=28';
-import { unitLabel } from '../game/unit.js?v=30';
+import { unitLabel } from '../game/unit.js?v=31';
 
 function escapeHtml(value) {
   return String(value ?? '')

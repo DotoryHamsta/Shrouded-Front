@@ -9,7 +9,8 @@
 // - command / mission summaries
 
 import { formatRations, formatTime } from '../game/report.js?v=28';
-import { unitLabel } from '../game/unit.js?v=30';
+import { unitLabel } from '../game/unit.js?v=31';
+import { CAPABILITY_LABELS } from '../game/formation.js?v=31';
 import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
@@ -51,11 +52,23 @@ function unitRow(unit) {
   const leader = unit.leader?.name ? `${unit.leader.name} · ${unit.leader.traitLabel ?? '-'}` : '-';
   const cohesion = Number.isFinite(unit.cohesion) ? `${Math.round(unit.cohesion)}%` : '-';
   const recon = Number.isFinite(unit.reconProgress) ? `${Math.round(unit.reconProgress)}%` : '0%';
+  const capabilityText = [
+    ['recon', '정'],
+    ['communication', '통'],
+    ['combat', '교'],
+    ['sustainment', '지'],
+    ['mobility', '기']
+  ].map(([key, fallback]) => {
+    const label = CAPABILITY_LABELS[key]?.slice(0, 1) ?? fallback;
+    const value = Math.round(unit.capabilities?.[key] ?? 0);
+    return `${label}${value}`;
+  }).join(' ');
   return `
     <tr>
       <td>${escapeHtml(name)}</td>
       <td>${escapeHtml(role)}</td>
       <td>${escapeHtml(personnel)}</td>
+      <td>${escapeHtml(capabilityText)}</td>
       <td>${escapeHtml(sector)}</td>
       <td>${escapeHtml(String(level))}</td>
       <td>${escapeHtml(String(health))}</td>
@@ -210,6 +223,7 @@ export class OperationsBoard {
                     <th>이름</th>
                     <th>역할</th>
                     <th>인원</th>
+                    <th>능력</th>
                     <th>구역</th>
                     <th>Lv</th>
                     <th>HP</th>
@@ -224,7 +238,7 @@ export class OperationsBoard {
                   </tr>
                 </thead>
                 <tbody>
-                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="14" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
+                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="15" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
                 </tbody>
               </table>
             </div>
