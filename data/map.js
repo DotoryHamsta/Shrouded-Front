@@ -489,9 +489,9 @@ export const SOUTHERN_RIVER_CROSSING_MAP = mapBundle({
     briefing: '강변 교량과 도하 지점을 살피고, 노출된 교두보에 맞는 작전 단위를 편성한다.'
   },
   background: {
-    href: './assets/maps/southern-river-crossing-v1.svg',
-    type: 'vector-background',
-    sourceSize: { width: 1200, height: 820 },
+    href: './assets/maps/southern-river-crossing-v1.png',
+    type: 'raster',
+    sourceSize: { width: 1517, height: 1037 },
     includes: ['terrain', 'river', 'roads', 'forest', 'ridge'],
     excludes: ['sector labels', 'grid labels', 'legend text', 'sector boundary dotted line']
   },
@@ -554,9 +554,9 @@ export const EASTERN_RIDGE_LINE_MAP = mapBundle({
     briefing: '능선 관측로와 숲 우회로를 동시에 관리할 수 있게 작전 단위를 나눈다.'
   },
   background: {
-    href: './assets/maps/eastern-ridge-line-v1.svg',
-    type: 'vector-background',
-    sourceSize: { width: 1200, height: 820 },
+    href: './assets/maps/eastern-ridge-line-v1.png',
+    type: 'raster',
+    sourceSize: { width: 1517, height: 1037 },
     includes: ['terrain', 'river', 'roads', 'forest', 'ridge'],
     excludes: ['sector labels', 'grid labels', 'legend text', 'sector boundary dotted line']
   },

@@ -24,7 +24,7 @@ import {
   roleLabel
 } from '../game/formation.js?v=31';
 import { MISSION_ROLE_LABELS } from '../game/unit.js?v=31';
-import { DEFAULT_MAP_ID, codeForSector, getMapById, listMaps } from '../data/map.js?v=37';
+import { DEFAULT_MAP_ID, codeForSector, getMapById, listMaps } from '../data/map.js?v=38';
 
 function escapeHtml(value) {
   return String(value ?? '')

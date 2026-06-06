@@ -3,7 +3,7 @@
 // player can scan the force at a glance and jump to any unit on the map.
 
 import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=36';
-import { codeForSector } from '../data/map.js?v=37';
+import { codeForSector } from '../data/map.js?v=38';
 import { formatRations } from '../game/report.js?v=28';
 
 function escapeHtml(value) {
