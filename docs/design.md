@@ -1,6 +1,6 @@
 Shrouded Front Design Document
 
-Version: 0.2
+Version: 0.3
 
 ⸻
 
@@ -100,6 +100,9 @@ Time System
 * 4x
 
 플레이어는 언제든 일시정지 가능.
+
+시간 단위는 초로 통일한다 (1틱 = 1초). 클록은 MM:SS로 표시하고,
+모든 시간 표기("초기 정찰 N초", "다음 보고 N초")도 초를 사용한다.
 
 ⸻
 
