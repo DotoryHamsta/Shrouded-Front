@@ -28,7 +28,7 @@ export const UNIT_TEMPLATES = Object.freeze({
     label: '정찰병',
     role: '정찰',
     maxHealth: 60,
-    baseFood: 12,
+    baseFood: 72,
     baseAmmo: 0,
     vision: 4,
     comm: 4,
@@ -42,7 +42,7 @@ export const UNIT_TEMPLATES = Object.freeze({
     label: '보병',
     role: '점령',
     maxHealth: 100,
-    baseFood: 14,
+    baseFood: 48,
     baseAmmo: 0,
     vision: 2,
     comm: 3,
@@ -56,7 +56,7 @@ export const UNIT_TEMPLATES = Object.freeze({
     label: '포병',
     role: '화력',
     maxHealth: 80,
-    baseFood: 10,
+    baseFood: 36,
     baseAmmo: 6,
     vision: 1,
     comm: 3,
@@ -228,7 +228,8 @@ export class Unit {
   }
 
   get isHungry() {
-    return this.food > 0 && this.food <= Math.ceil(this.template.baseFood * 0.3);
+    const threshold = Math.min(24, Math.ceil(this.maxFood * 0.34));
+    return this.food > 0 && this.food <= threshold;
   }
 
   get isExhausted() {

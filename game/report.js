@@ -384,14 +384,45 @@ export class Report {
   }
 }
 
-// Time is measured in seconds (1 simulation tick = 1 second). The clock is
-// formatted as MM:SS so it stays consistent with the "N초" labels used
-// elsewhere in the UI.
-export function formatTime(seconds) {
-  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-  const mm = Math.floor(safeSeconds / 60);
-  const ss = safeSeconds % 60;
-  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+export const MINUTES_PER_HOUR = 60;
+export const HOURS_PER_DAY = 24;
+export const MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR;
+export const OPERATION_START_MINUTES = 6 * MINUTES_PER_HOUR;
+
+function safeMinutes(minutes) {
+  return Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0;
+}
+
+// Time is measured in operational minutes. The UI shows a mission clock instead
+// of raw seconds so orders read like field decisions: D1 06:00, D1 14:30, etc.
+export function formatTime(minutes) {
+  const absolute = OPERATION_START_MINUTES + safeMinutes(minutes);
+  const day = Math.floor(absolute / MINUTES_PER_DAY) + 1;
+  const minuteOfDay = absolute % MINUTES_PER_DAY;
+  const hh = Math.floor(minuteOfDay / MINUTES_PER_HOUR);
+  const mm = minuteOfDay % MINUTES_PER_HOUR;
+  return `D${day} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+export function formatDuration(minutes) {
+  const total = safeMinutes(minutes);
+  if (total <= 0) return '0분';
+
+  const days = Math.floor(total / MINUTES_PER_DAY);
+  const hours = Math.floor((total % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
+  const mins = total % MINUTES_PER_HOUR;
+  const parts = [];
+
+  if (days > 0) parts.push(`${days}일`);
+  if (hours > 0) parts.push(`${hours}시간`);
+  if (days === 0 && mins > 0) parts.push(`${mins}분`);
+
+  return parts.length > 0 ? parts.slice(0, 2).join(' ') : '0분';
+}
+
+export function formatRations(hours) {
+  const safeHours = Number.isFinite(hours) ? Math.max(0, hours) : 0;
+  return formatDuration(safeHours * MINUTES_PER_HOUR);
 }
 
 export function createReportList(reports = []) {

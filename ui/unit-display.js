@@ -4,9 +4,10 @@
 // so the map view and the unit roster stay consistent.
 
 import { codeForSector } from '../data/map.js?v=27';
+import { MINUTES_PER_HOUR, formatDuration } from '../game/report.js?v=28';
 
-// Report cadence by unit level (mirrors Simulation._reportInterval).
-const REPORT_INTERVAL_BY_LEVEL = [20, 14, 9, 6, 4];
+// Report cadence by unit level (mirrors Simulation._reportIntervalMinutes).
+const REPORT_INTERVAL_BY_LEVEL = [4 * MINUTES_PER_HOUR, 3 * MINUTES_PER_HOUR, 2 * MINUTES_PER_HOUR, 90, 60];
 
 export function reportIntervalForLevel(level) {
   const idx = Math.min(Math.max(1, level || 1) - 1, REPORT_INTERVAL_BY_LEVEL.length - 1);
@@ -65,13 +66,16 @@ function baseActivity(unit) {
     if (rs && rs.sectorId === unit.sectorId && !rs.setupDone) {
       const left = Math.max(0, rs.setupLeft ?? 0);
       const hungry = status === 'hungry' ? ' · 식량 부족' : '';
-      return { text: `초기 정찰 중 (${left}초)${hungry}`, tone: 'setup' };
+      return { text: `초기 정찰 중 (${formatDuration(left)})${hungry}`, tone: 'setup' };
     }
     if (rs && rs.sectorId === unit.sectorId && rs.setupDone) {
       const interval = reportIntervalForLevel(unit.level);
-      const next = Math.max(0, interval - (rs.turnsSinceReport ?? 0));
+      const next = Math.max(0, interval - (rs.minutesSinceReport ?? 0));
+      const duration = rs.missionDurationMinutes
+        ? ` · 체류 ${formatDuration(rs.onStationMinutes ?? 0)}/${formatDuration(rs.missionDurationMinutes)}`
+        : '';
       const hungry = status === 'hungry' ? ' · 식량 부족' : '';
-      return { text: `정찰 중 · 다음 보고 ${next}초${hungry}`, tone: 'recon' };
+      return { text: `정찰 중${duration} · 다음 보고 ${formatDuration(next)}${hungry}`, tone: 'recon' };
     }
     return { text: '정찰 준비', tone: 'setup' };
   }

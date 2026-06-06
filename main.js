@@ -1,13 +1,14 @@
-import { createDefaultSimulation } from './game/simulation.js?v=28';
-import { formatTime } from './game/report.js?v=27';
+import { createDefaultSimulation } from './game/simulation.js?v=29';
+import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
 import { codeForSector } from './data/map.js?v=27';
-import { createMapView } from './ui/map.js?v=29';
-import { createDetailPanel } from './ui/details.js?v=27';
-import { createOperationsBoard } from './ui/operations.js?v=27';
-import { createUnitRoster } from './ui/roster.js?v=27';
+import { createMapView } from './ui/map.js?v=30';
+import { createDetailPanel } from './ui/details.js?v=28';
+import { createOperationsBoard } from './ui/operations.js?v=28';
+import { createUnitRoster } from './ui/roster.js?v=28';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
+const RECON_DURATION_PRESETS = [4 * 60, 8 * 60, 24 * 60];
 
 const root = document.getElementById('mapMount');
 
@@ -20,7 +21,7 @@ root.innerHTML = `
     <header class="topbar">
       <div class="titleBlock">
         <h1>Shrouded Front</h1>
-        <p id="timeReadout">00:00 경과</p>
+        <p id="timeReadout">작전시각 D1 06:00</p>
       </div>
       <div class="controls">
         <button class="btn" id="pauseButton" type="button">Pause</button>
@@ -245,16 +246,32 @@ function sectorById(sectorId) {
   return state.sectors.find((sector) => sector.id === sectorId) ?? null;
 }
 
-function commandButton({ action, sectorId = '', label, disabled = false, tone = '' }) {
+function commandButton({
+  action,
+  sectorId = '',
+  label,
+  detail = '',
+  disabled = false,
+  tone = '',
+  durationMinutes = null
+}) {
   return `
     <button
       class="sf-command-btn ${escapeHtml(tone)}"
       type="button"
       data-action="${escapeHtml(action)}"
       ${sectorId ? `data-sector-id="${escapeHtml(sectorId)}"` : ''}
+      ${Number.isFinite(durationMinutes) ? `data-duration-minutes="${durationMinutes}"` : ''}
       ${disabled ? 'disabled' : ''}
-    >${escapeHtml(label)}</button>
+    >
+      <span>${escapeHtml(label)}</span>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ''}
+    </button>
   `;
+}
+
+function estimateLine(parts = []) {
+  return parts.filter(Boolean).join(' · ');
 }
 
 function openUnitCommand() {
@@ -290,6 +307,7 @@ function renderUnitCommand() {
   const nearestSupplyId = simulation.nearestSupplySectorId(unit.sectorId);
   const atSupply = supplyIds.includes(unit.sectorId);
   const foodPct = Math.max(0, Math.min(100, (unit.food / Math.max(1, unit.maxFood ?? unit.food ?? 1)) * 100));
+  const foodText = formatRations(unit.food ?? 0);
   const targetText = unit.targetSectorId ? codeForSector(unit.targetSectorId) : '-';
   const notice = unitCommandNotice
     ? `<div class="sf-command-notice">${escapeHtml(unitCommandNotice)}</div>`
@@ -304,34 +322,77 @@ function renderUnitCommand() {
       label: '대기',
       disabled: disconnected
     }),
-    ...neighbors.map((sector) => commandButton({
-      action: 'move',
-      sectorId: sector.id,
-      label: `${sector.code || sector.id} 이동`,
-      disabled: moveDisabled
-    }))
+    ...neighbors.map((sector) => {
+      const estimate = simulation.estimateMoveOrder(unit.id, sector.id);
+      return commandButton({
+        action: 'move',
+        sectorId: sector.id,
+        label: `${sector.code || sector.id} 이동`,
+        detail: estimate ? `도착 ${formatDuration(estimate.travelMinutes)}` : '',
+        disabled: moveDisabled
+      });
+    })
   ].join('');
 
   const reconButtons = unit.type === 'recon'
     ? `
       <div class="sf-command-section">
         <div class="sf-command-section-title">정찰</div>
-        <div class="sf-command-grid">
-          ${neighbors.map((sector) => commandButton({
-            action: 'recon',
-            sectorId: sector.id,
-            label: `${sector.code || sector.id} 정찰`,
-            disabled: moveDisabled
-          })).join('')}
+        <div class="sf-mission-list">
+          ${neighbors.map((sector) => {
+            const baseEstimate = simulation.estimateReconOrder(unit.id, sector.id, { durationMinutes: RECON_DURATION_PRESETS[0] });
+            const meta = baseEstimate
+              ? estimateLine([
+                `도착 ${formatDuration(baseEstimate.travelMinutes)}`,
+                `첫 보고 ${formatDuration(baseEstimate.firstReportMinutes)}`,
+                `주기 ${formatDuration(baseEstimate.reportIntervalMinutes)}`,
+                `복귀 ${formatDuration(baseEstimate.returnMinutes)}`
+              ])
+              : '';
+            const safe = baseEstimate ? `안전 체류 ${formatDuration(baseEstimate.safeOnStationMinutes)}` : '';
+            return `
+              <div class="sf-mission-card">
+                <div class="sf-mission-head">
+                  <strong>${escapeHtml(sector.code || sector.id)} 정찰</strong>
+                  ${safe ? `<span>${escapeHtml(safe)}</span>` : ''}
+                </div>
+                ${meta ? `<div class="sf-mission-meta">${escapeHtml(meta)}</div>` : ''}
+                <div class="sf-mission-options">
+                  ${RECON_DURATION_PRESETS.map((durationMinutes) => {
+                    const estimate = simulation.estimateReconOrder(unit.id, sector.id, { durationMinutes });
+                    const riskTone = estimate?.risk === 'insufficient'
+                      ? 'danger'
+                      : estimate?.risk === 'tight'
+                        ? 'warn'
+                        : '';
+                    const detail = estimate
+                      ? `식량 여유 ${estimate.marginFoodHours >= 0 ? formatRations(estimate.marginFoodHours) : `-${formatRations(Math.abs(estimate.marginFoodHours))}`}`
+                      : '';
+                    return commandButton({
+                      action: 'recon',
+                      sectorId: sector.id,
+                      label: `현장 ${formatDuration(durationMinutes)}`,
+                      detail,
+                      disabled: moveDisabled,
+                      tone: riskTone,
+                      durationMinutes
+                    });
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
     `
     : '';
 
+  const returnEstimate = nearestSupplyId ? simulation.estimateReturnOrder(unit.id) : null;
   const returnButton = commandButton({
     action: 'return',
     sectorId: nearestSupplyId,
     label: atSupply ? '보급 거점 대기' : `${codeForSector(nearestSupplyId)} 복귀`,
+    detail: returnEstimate ? `소요 ${formatDuration(returnEstimate.returnMinutes)}` : '',
     disabled: disconnected || atSupply || !nearestSupplyId,
     tone: 'warn'
   });
@@ -371,7 +432,7 @@ function renderUnitCommand() {
       <div class="sf-command-bar-row">
         <span>식량</span>
         <div class="sf-command-bar food"><i style="width:${foodPct}%"></i></div>
-        <b>${Math.round(unit.food ?? 0)}</b>
+        <b>${escapeHtml(foodText)}</b>
       </div>
     </div>
 
@@ -401,12 +462,15 @@ function handleUnitCommandAction(event) {
 
   const action = button.dataset.action;
   const sectorId = button.dataset.sectorId || null;
+  const durationMinutes = Number(button.dataset.durationMinutes);
   let result = null;
 
   if (action === 'move' && sectorId) {
     result = simulation.issueMoveOrder(unit.id, sectorId);
   } else if (action === 'recon' && sectorId) {
-    result = simulation.issueReconOrder(unit.id, sectorId);
+    result = simulation.issueReconOrder(unit.id, sectorId, {
+      durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : null
+    });
   } else if (action === 'return') {
     result = simulation.issueReturnOrder(unit.id);
   }
@@ -425,7 +489,7 @@ function renderHeader() {
   const reconUnit = state.units.find((unit) => unit.type === 'recon');
   const reconProgress = reconUnit ? `${Math.round(reconUnit.reconProgress ?? 0)}%` : '0%';
 
-  timeReadout.textContent = `${formatTime(state.time)} 경과`;
+  timeReadout.textContent = `작전시각 ${formatTime(state.time)}`;
   pauseButton.textContent = state.paused ? 'Resume' : 'Pause';
   pauseButton.classList.toggle('active', state.paused);
   mapStatus.textContent = selected

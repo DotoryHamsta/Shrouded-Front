@@ -6,14 +6,42 @@
 
 import { MAP, getSectorById } from '../data/map.js?v=27';
 import { Sector } from './sector.js?v=27';
-import { Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=27';
+import { MINUTES_PER_HOUR, Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=28';
 import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
   isUnitAlive,
   unitLabel
-} from './unit.js?v=27';
+} from './unit.js?v=28';
+
+export const SIM_MINUTES_PER_TICK = 15;
+
+const TERRAIN_SETUP_MINUTES = Object.freeze({
+  plain: 4 * MINUTES_PER_HOUR,
+  ridge: 5 * MINUTES_PER_HOUR,
+  valley: 5 * MINUTES_PER_HOUR,
+  river: 5 * MINUTES_PER_HOUR,
+  forest: 6 * MINUTES_PER_HOUR,
+  swamp: 8 * MINUTES_PER_HOUR
+});
+
+const TERRAIN_MOVE_MINUTES = Object.freeze({
+  plain: 90,
+  ridge: 150,
+  valley: 150,
+  river: 180,
+  forest: 210,
+  swamp: 270
+});
+
+const REPORT_INTERVAL_MINUTES_BY_LEVEL = Object.freeze([
+  4 * MINUTES_PER_HOUR,
+  3 * MINUTES_PER_HOUR,
+  2 * MINUTES_PER_HOUR,
+  90,
+  60
+]);
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -26,6 +54,11 @@ function pick(arr) {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function roundToTickMinutes(minutes) {
+  const safe = Number.isFinite(minutes) ? Math.max(SIM_MINUTES_PER_TICK, minutes) : SIM_MINUTES_PER_TICK;
+  return Math.max(SIM_MINUTES_PER_TICK, Math.round(safe / SIM_MINUTES_PER_TICK) * SIM_MINUTES_PER_TICK);
 }
 
 function formatSizeLabel(size) {
@@ -271,15 +304,71 @@ export class Simulation {
     return penalties[sector.terrain] ?? 1.1;
   }
 
-  _setupTurns(sector, unit) {
-    const base = { valley: 10, ridge: 8, forest: 14, swamp: 16, river: 10, plain: 5 };
-    const baseTurns = base[sector?.terrain] ?? 8;
+  _setupMinutes(sector, unit) {
+    const baseMinutes = TERRAIN_SETUP_MINUTES[sector?.terrain] ?? (5 * MINUTES_PER_HOUR);
     const reduction = (Math.min(unit.level, 5) - 1) * 0.12;
-    return Math.max(3, Math.round(baseTurns * (1 - reduction)));
+    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction)));
   }
 
-  _reportInterval(unit) {
-    return [20, 14, 9, 6, 4][Math.min(unit.level - 1, 4)];
+  _reportIntervalMinutes(unit) {
+    return REPORT_INTERVAL_MINUTES_BY_LEVEL[Math.min(unit.level - 1, REPORT_INTERVAL_MINUTES_BY_LEVEL.length - 1)];
+  }
+
+  _movementMinutesToEnter(sector, unit) {
+    const baseMinutes = TERRAIN_MOVE_MINUTES[sector?.terrain] ?? 150;
+    const moveFactor = 2 / Math.max(1, unit?.move ?? 2);
+    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor));
+  }
+
+  _pathToTarget(fromId, targetId) {
+    if (!fromId || !targetId || !this.sectors.has(fromId) || !this.sectors.has(targetId)) return null;
+    if (fromId === targetId) return [fromId];
+
+    const visited = new Set([fromId]);
+    const queue = [fromId];
+    const cameFrom = new Map();
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const neighbors = this.getSector(current)?.neighbors ?? [];
+
+      for (const next of neighbors) {
+        if (visited.has(next) || !this.sectors.has(next)) continue;
+        visited.add(next);
+        cameFrom.set(next, current);
+
+        if (next === targetId) {
+          const path = [targetId];
+          let step = targetId;
+          while (step !== fromId) {
+            step = cameFrom.get(step);
+            if (!step) return null;
+            path.unshift(step);
+          }
+          return path;
+        }
+
+        queue.push(next);
+      }
+    }
+
+    return null;
+  }
+
+  _estimateTravel(unit, fromId, targetId, activity = 'moving') {
+    const path = this._pathToTarget(fromId, targetId);
+    if (!unit || !path) return null;
+
+    let minutes = 0;
+    let foodHours = 0;
+    for (const sectorId of path.slice(1)) {
+      const sector = this.getSector(sectorId);
+      const legMinutes = this._movementMinutesToEnter(sector, unit);
+      minutes += legMinutes;
+      foodHours += this._foodDrainForMinutes(unit, sector, activity, legMinutes);
+    }
+
+    return { path, minutes, foodHours };
   }
 
   _nearestSupplySectorId(fromSectorId) {
@@ -308,6 +397,74 @@ export class Simulation {
 
   _isSupplySector(sectorId) {
     return this.defaultSupplySectorIds.includes(sectorId);
+  }
+
+  estimateMoveOrder(unitId, targetSectorId) {
+    const unit = this.getUnit(unitId);
+    if (!unit || !targetSectorId) return null;
+    const travel = this._estimateTravel(unit, unit.sectorId, targetSectorId, 'moving');
+    if (!travel) return null;
+    return {
+      targetSectorId,
+      path: travel.path,
+      travelMinutes: travel.minutes,
+      foodCostHours: travel.foodHours,
+      marginFoodHours: unit.food - travel.foodHours
+    };
+  }
+
+  estimateReturnOrder(unitId, fromSectorId = null) {
+    const unit = this.getUnit(unitId);
+    if (!unit) return null;
+    const origin = fromSectorId ?? unit.sectorId;
+    const targetSectorId = this._nearestSupplySectorId(origin);
+    if (!targetSectorId) return null;
+    const travel = this._estimateTravel(unit, origin, targetSectorId, 'returning');
+    if (!travel) return null;
+    return {
+      targetSectorId,
+      path: travel.path,
+      returnMinutes: travel.minutes,
+      foodCostHours: travel.foodHours
+    };
+  }
+
+  estimateReconOrder(unitId, targetSectorId, { durationMinutes = 0 } = {}) {
+    const unit = this.getUnit(unitId);
+    const targetSector = this.getSector(targetSectorId);
+    if (!unit || unit.type !== UNIT_TYPES.RECON || !targetSector) return null;
+
+    const outbound = this._estimateTravel(unit, unit.sectorId, targetSectorId, 'moving');
+    const inbound = this.estimateReturnOrder(unitId, targetSectorId);
+    if (!outbound || !inbound) return null;
+
+    const setupMinutes = this._setupMinutes(targetSector, unit);
+    const onStationMinutes = Math.max(0, durationMinutes);
+    const setupFoodHours = this._foodDrainForMinutes(unit, targetSector, 'recon', setupMinutes);
+    const onStationFoodHours = this._foodDrainForMinutes(unit, targetSector, 'recon', onStationMinutes);
+    const totalFoodCostHours = outbound.foodHours + setupFoodHours + onStationFoodHours + inbound.foodCostHours;
+    const marginFoodHours = unit.food - totalFoodCostHours;
+    const targetReconRate = this._foodDrainPerHour(unit, targetSector, 'recon');
+    const safeOnStationMinutes = targetReconRate > 0
+      ? Math.max(0, ((unit.food - outbound.foodHours - setupFoodHours - inbound.foodCostHours) / targetReconRate) * MINUTES_PER_HOUR)
+      : 0;
+
+    return {
+      targetSectorId,
+      returnSectorId: inbound.targetSectorId,
+      path: outbound.path,
+      returnPath: inbound.path,
+      travelMinutes: outbound.minutes,
+      setupMinutes,
+      firstReportMinutes: outbound.minutes + setupMinutes,
+      reportIntervalMinutes: this._reportIntervalMinutes(unit),
+      onStationMinutes,
+      returnMinutes: inbound.returnMinutes,
+      totalFoodCostHours,
+      marginFoodHours,
+      safeOnStationMinutes: Math.max(0, Math.round(safeOnStationMinutes)),
+      risk: marginFoodHours < 0 ? 'insufficient' : marginFoodHours < 12 ? 'tight' : 'safe'
+    };
   }
 
   // Breadth-first search over the sector adjacency graph (sector.neighbors).
@@ -474,8 +631,8 @@ export class Simulation {
     const nextSector = nextSectorId ? this.getSector(nextSectorId) : null;
     if (!nextSector) return false;
 
-    const moveCost = this._sectorTerrainCost(nextSector) * (2 / Math.max(1, unit.move));
-    unit.moveBuffer += 1;
+    const moveCost = this._movementMinutesToEnter(nextSector, unit);
+    unit.moveBuffer += SIM_MINUTES_PER_TICK;
 
     if (unit.moveBuffer < moveCost) {
       return false;
@@ -511,22 +668,50 @@ export class Simulation {
     return true;
   }
 
+  _foodDrainPerHour(unit, sector, activity = 'idle') {
+    if (activity === 'idle') return 0;
+
+    const terrainMultiplier = 0.9 + this._sectorTerrainCost(sector) * 0.1;
+    const base = unit.type === UNIT_TYPES.ARTILLERY
+      ? 1.15
+      : unit.type === UNIT_TYPES.INFANTRY
+        ? 1.05
+        : 1.0;
+    const activityMultiplier = {
+      moving: 1.35,
+      recon: 1.0,
+      returning: 1.15,
+      engaged: 2.2
+    }[activity] ?? 1.0;
+
+    return base * terrainMultiplier * activityMultiplier;
+  }
+
+  _foodDrainForMinutes(unit, sector, activity, minutes) {
+    return this._foodDrainPerHour(unit, sector, activity) * (Math.max(0, minutes) / MINUTES_PER_HOUR);
+  }
+
   _drainFood(unit, sector) {
     const moving = Boolean(unit.targetSectorId && unit.sectorId !== unit.targetSectorId);
     const reconning = unit.type === UNIT_TYPES.RECON && String(unit.command ?? '').includes('정찰');
     const returning = unit.status === UNIT_STATUS.RETURNING || String(unit.command ?? '').includes('복귀');
     const engaged = unit.status === UNIT_STATUS.ENGAGED || unit.isInCombat;
-    if (!moving && !reconning && !returning && !engaged) return;
+    const activity = engaged
+      ? 'engaged'
+      : returning
+        ? 'returning'
+        : moving
+          ? 'moving'
+          : reconning
+            ? 'recon'
+            : 'idle';
+    if (activity === 'idle') return;
 
-    const terrainCost = this._sectorTerrainCost(sector);
-    const baseDrain = unit.type === UNIT_TYPES.ARTILLERY ? 0.12 : unit.type === UNIT_TYPES.RECON ? 0.10 : 0.08;
-    const operationCost = (moving ? 1.1 : 0) + (reconning ? 0.65 : 0) + (returning ? 0.45 : 0) + (engaged ? 1.4 : 0);
-    const drain = baseDrain * terrainCost * Math.max(0.45, operationCost);
-    unit.applyFoodDrain(drain);
+    unit.applyFoodDrain(this._foodDrainForMinutes(unit, sector, activity, SIM_MINUTES_PER_TICK));
 
     if (unit.food <= 0) {
       unit.setStatus(UNIT_STATUS.EXHAUSTED);
-    } else if (unit.food <= Math.ceil(unit.maxFood * 0.3) && unit.status === UNIT_STATUS.ACTIVE) {
+    } else if (unit.isHungry && unit.status === UNIT_STATUS.ACTIVE) {
       unit.setStatus(UNIT_STATUS.HUNGRY);
     } else if (unit.status === UNIT_STATUS.HUNGRY) {
       unit.setStatus(UNIT_STATUS.ACTIVE);
@@ -549,6 +734,8 @@ export class Simulation {
     unit.setTargetSector(null);
     if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
     unit.meta.returnTargetSectorId = null;
+    unit.meta.reconMission = null;
+    unit.meta.reconState = null;
 
     if (shouldReport) {
       this.addReport(new Report({
@@ -602,20 +789,25 @@ export class Simulation {
 
     const rs = unit.meta.reconState;
     if (!rs || rs.sectorId !== sector.id) {
-      const setupTotal = this._setupTurns(sector, unit);
+      const setupTotal = this._setupMinutes(sector, unit);
+      const mission = unit.meta.reconMission?.targetSectorId === sector.id
+        ? unit.meta.reconMission
+        : null;
       unit.meta.reconState = {
         sectorId: sector.id,
         setupTotal,
         setupLeft: setupTotal,
         setupDone: false,
-        turnsSinceReport: 0
+        minutesSinceReport: 0,
+        onStationMinutes: 0,
+        missionDurationMinutes: mission?.durationMinutes ?? null
       };
     }
 
     const state = unit.meta.reconState;
 
     if (!state.setupDone) {
-      state.setupLeft--;
+      state.setupLeft = Math.max(0, state.setupLeft - SIM_MINUTES_PER_TICK);
       const progress = Math.round((1 - state.setupLeft / state.setupTotal) * 99);
       sector.setReconProgress(progress);
       sector.setLastKnownTurn(this.turn);
@@ -624,18 +816,53 @@ export class Simulation {
 
       if (state.setupLeft <= 0) {
         state.setupDone = true;
-        state.turnsSinceReport = 0;
+        state.minutesSinceReport = 0;
+        state.onStationMinutes = 0;
         sector.setReconProgress(100);
         unit.setReconProgress(100);
         this._generateReconReport(unit, sector);
       }
     } else {
-      state.turnsSinceReport++;
-      if (state.turnsSinceReport >= this._reportInterval(unit)) {
-        state.turnsSinceReport = 0;
+      state.onStationMinutes = (state.onStationMinutes ?? 0) + SIM_MINUTES_PER_TICK;
+      state.minutesSinceReport = (state.minutesSinceReport ?? 0) + SIM_MINUTES_PER_TICK;
+      if (state.minutesSinceReport >= this._reportIntervalMinutes(unit)) {
+        state.minutesSinceReport = 0;
         this._generateReconReport(unit, sector);
       }
+      if (state.missionDurationMinutes && state.onStationMinutes >= state.missionDurationMinutes) {
+        this._completeReconMission(unit, sector);
+      }
     }
+  }
+
+  _completeReconMission(unit, sector) {
+    const targetSectorId = this._nearestSupplySectorId(unit.sectorId);
+    if (!targetSectorId) return;
+
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.reconState = null;
+    unit.meta.reconMission = null;
+    unit.meta.returnTargetSectorId = targetSectorId;
+    unit.setCommand('복귀');
+    unit.setTargetSector(targetSectorId);
+    unit.startRetreat();
+
+    const report = new Report({
+      time: this.time,
+      source: unit.name,
+      sectorId: sector.id,
+      sectorCode: sector.code,
+      kind: REPORT_KINDS.STATUS,
+      classTag: REPORT_CLASS.C,
+      summary: '정찰 임무 종료',
+      body: `${sector.code}\n계획 체류 완료, ${this.getSector(targetSectorId)?.code ?? targetSectorId} 보급 복귀`,
+      tags: ['recon', 'returning'],
+      meta: {
+        unitId: unit.id,
+        targetSectorId
+      }
+    });
+    this._deliverOrBuffer(unit, report);
   }
 
   _generateReconReport(unit, sector) {
@@ -898,7 +1125,7 @@ export class Simulation {
     if (this.paused) return this.getState();
 
     this.turn += 1;
-    this.time += 1;
+    this.time += SIM_MINUTES_PER_TICK;
 
     // Re-derive supply nodes occasionally in case the UI or future systems alter control.
     this._deriveSupplyNodes();
@@ -996,10 +1223,11 @@ export class Simulation {
 
     if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
     unit.meta.reconState = null;
+    unit.meta.reconMission = null;
     unit.meta.returnTargetSectorId = null;
 
     unit.stopRetreat();
-    unit.setStatus(unit.food <= Math.ceil(unit.maxFood * 0.3) ? UNIT_STATUS.HUNGRY : UNIT_STATUS.ACTIVE);
+    unit.setStatus(unit.isHungry ? UNIT_STATUS.HUNGRY : UNIT_STATUS.ACTIVE);
     unit.setCommand(targetSectorId === unit.sectorId ? '대기' : '이동');
     if (targetSectorId === unit.sectorId) unit.setTargetSector(null);
 
@@ -1018,6 +1246,7 @@ export class Simulation {
 
     if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
     unit.meta.reconState = null;
+    unit.meta.reconMission = null;
     unit.meta.returnTargetSectorId = targetSectorId;
     unit.setCommand('복귀');
     unit.setTargetSector(targetSectorId);
@@ -1026,7 +1255,7 @@ export class Simulation {
     return this.issueOrder(unitId, '복귀', { targetSectorId, note: '가장 가까운 보급 거점' });
   }
 
-  issueReconOrder(unitId, targetSectorId) {
+  issueReconOrder(unitId, targetSectorId, { durationMinutes = null } = {}) {
     const unit = this.getUnit(unitId);
     if (!unit || !unit.isAlive) return null;
 
@@ -1039,9 +1268,17 @@ export class Simulation {
 
     if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
     unit.meta.reconState = null;
+    unit.meta.reconMission = {
+      targetSectorId,
+      durationMinutes: Number.isFinite(durationMinutes) ? Math.max(0, Math.round(durationMinutes)) : null,
+      timeIssued: this.time
+    };
 
     unit.setCommand('정찰');
-    return this.issueOrder(unitId, '정찰', { targetSectorId });
+    const durationNote = unit.meta.reconMission.durationMinutes
+      ? `현장 체류 ${Math.round(unit.meta.reconMission.durationMinutes / MINUTES_PER_HOUR)}시간`
+      : '';
+    return this.issueOrder(unitId, '정찰', { targetSectorId, note: durationNote });
   }
 
   setSectorAlert(sectorId, alert = true, label = null) {

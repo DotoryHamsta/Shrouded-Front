@@ -2,8 +2,9 @@
 // Unit roster panel: lists all friendly units with their current activity so the
 // player can scan the force at a glance and jump to any unit on the map.
 
-import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=27';
+import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=28';
 import { codeForSector } from '../data/map.js?v=27';
+import { formatRations } from '../game/report.js?v=28';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -14,13 +15,13 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-function bar(label, value, max, cls) {
+function bar(label, value, max, cls, displayValue = null) {
   const pct = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
   return `
     <div class="sf-unit-bar">
       <span class="sf-unit-bar-label">${escapeHtml(label)}</span>
       <span class="sf-unit-bar-track"><span class="sf-unit-bar-fill ${cls}" style="width:${pct}%"></span></span>
-      <span class="sf-unit-bar-value">${Math.round(value)}</span>
+      <span class="sf-unit-bar-value">${escapeHtml(displayValue ?? String(Math.round(value)))}</span>
     </div>
   `;
 }
@@ -72,7 +73,7 @@ export class UnitRoster {
           </div>
           <div class="sf-unit-activity sf-act-${activity.tone}">${escapeHtml(activity.text)}</div>
           ${bar('HP', unit.health ?? 0, unit.maxHealth ?? 100, 'hp')}
-          ${bar('식량', unit.food ?? 0, maxFood, 'food')}
+          ${bar('식량', unit.food ?? 0, maxFood, 'food', formatRations(unit.food ?? 0))}
         </div>
       `;
     }).join('');

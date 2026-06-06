@@ -667,7 +667,7 @@ body{
 
 .sf-command-bar-row{
   display:grid;
-  grid-template-columns:42px 1fr 34px;
+  grid-template-columns:42px 1fr minmax(62px,max-content);
   align-items:center;
   gap:8px;
   color:var(--muted);
@@ -715,6 +715,49 @@ body{
   gap:8px;
 }
 
+.sf-mission-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.sf-mission-card{
+  padding:10px;
+  border:1px solid rgba(48,65,85,.72);
+  border-radius:6px;
+  background:#111923;
+}
+
+.sf-mission-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.sf-mission-head strong{
+  color:var(--text);
+  font-size:13px;
+}
+
+.sf-mission-head span,
+.sf-mission-meta{
+  color:var(--muted);
+  font-size:11px;
+}
+
+.sf-mission-meta{
+  margin-top:4px;
+  line-height:1.35;
+}
+
+.sf-mission-options{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+
 .sf-command-btn{
   min-height:38px;
   padding:8px 10px;
@@ -727,6 +770,19 @@ body{
   cursor:pointer;
 }
 
+.sf-command-btn span,
+.sf-command-btn small{
+  display:block;
+}
+
+.sf-command-btn small{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:600;
+  line-height:1.25;
+}
+
 .sf-command-btn:hover{
   border-color:var(--accent);
   background:#263244;
@@ -735,6 +791,11 @@ body{
 .sf-command-btn.warn{
   border-color:rgba(255,196,87,.65);
   color:#ffd27a;
+}
+
+.sf-command-btn.danger{
+  border-color:rgba(255,120,100,.72);
+  color:#ff9a86;
 }
 
 .sf-command-btn:disabled{
@@ -817,7 +878,8 @@ body{
   }
 
   .sf-command-status-grid,
-  .sf-command-grid{
+  .sf-command-grid,
+  .sf-mission-options{
     grid-template-columns:1fr;
   }
 
@@ -975,7 +1037,7 @@ body{
 .sf-unit-bar-fill.food { background: #8fd49a; }
 
 .sf-unit-bar-value {
-  width: 28px;
+  width: 58px;
   text-align: right;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;

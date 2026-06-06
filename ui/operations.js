@@ -8,8 +8,8 @@
 // - supply and communication state
 // - command / mission summaries
 
-import { formatTime } from '../game/report.js?v=27';
-import { unitLabel } from '../game/unit.js?v=27';
+import { formatRations, formatTime } from '../game/report.js?v=28';
+import { unitLabel } from '../game/unit.js?v=28';
 import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
@@ -41,7 +41,7 @@ function unitRow(unit) {
   const sector = codeForSector(unit.sectorId);
   const level = unit.level ?? 1;
   const health = Math.max(0, Math.round(unit.health ?? 0));
-  const food = Math.max(0, Math.round(unit.food ?? 0));
+  const food = formatRations(unit.food ?? 0);
   const ammo = Math.max(0, Math.round(unit.ammo ?? 0));
   const status = unit.status || 'active';
   const ready = unit.readiness ?? null;
@@ -54,7 +54,7 @@ function unitRow(unit) {
       <td>${escapeHtml(sector)}</td>
       <td>${escapeHtml(String(level))}</td>
       <td>${escapeHtml(String(health))}</td>
-      <td>${escapeHtml(String(food))}</td>
+      <td>${escapeHtml(food)}</td>
       <td>${escapeHtml(String(ammo))}</td>
       <td>${escapeHtml(status)}</td>
       <td>${escapeHtml(comm)}</td>
@@ -175,7 +175,7 @@ export class OperationsBoard {
         </div>
 
         <div class="sf-ops-summary-grid">
-          ${summaryCard('경과 시간', formatTime(time))}
+          ${summaryCard('작전 시각', formatTime(time))}
           ${summaryCard('Active Units', String(activeUnits.length))}
           ${summaryCard('Reports', String(reports.length))}
           ${summaryCard('Alert Sectors', String(alertSectors.length))}

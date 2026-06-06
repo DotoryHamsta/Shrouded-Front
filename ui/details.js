@@ -5,8 +5,8 @@
 // unit summaries, and operational notes into the right-side panel.
 
 import { getSectorById, codeForSector } from '../data/map.js?v=27';
-import { formatTime } from '../game/report.js?v=27';
-import { unitLabel } from '../game/unit.js?v=27';
+import { formatTime } from '../game/report.js?v=28';
+import { unitLabel } from '../game/unit.js?v=28';
 
 function escapeHtml(value) {
   return String(value ?? '')
