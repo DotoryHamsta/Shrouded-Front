@@ -222,6 +222,36 @@ function validateScenario({ file, scenario }, mapsById) {
       }
     }
 
+    validateUnique(config.supportUnits ?? [], 'id', configScope);
+    for (const unit of config.supportUnits ?? []) {
+      if (!unit.type) fail(configScope, `support unit "${unit.id}" is missing type`);
+      if (!sectorIds.has(unit.sectorId)) {
+        fail(configScope, `support unit "${unit.id}" references missing sector "${unit.sectorId}"`);
+      }
+      if (unit.originSectorId && !sectorIds.has(unit.originSectorId)) {
+        fail(configScope, `support unit "${unit.id}" references missing origin sector "${unit.originSectorId}"`);
+      }
+
+      if (unit.type === 'artillery') {
+        const profile = unit.meta?.fireProfile ?? {};
+        const point = asPoint(profile.point);
+        if (!pointIsFinite(point)) {
+          fail(configScope, `artillery "${unit.id}" must define meta.fireProfile.point`);
+        } else if (!pointInViewBox(point, map.viewBox)) {
+          fail(configScope, `artillery "${unit.id}" fire position is outside viewBox (${point.x}, ${point.y})`);
+        }
+        if (!Number.isFinite(profile.maxRange) || profile.maxRange <= 0) {
+          fail(configScope, `artillery "${unit.id}" must define a positive meta.fireProfile.maxRange`);
+        }
+        if (Number.isFinite(profile.minRange) && profile.minRange < 0) {
+          fail(configScope, `artillery "${unit.id}" minRange must not be negative`);
+        }
+        if (!Number.isFinite(unit.ammo) || unit.ammo <= 0) {
+          fail(configScope, `artillery "${unit.id}" must start with positive ammo`);
+        }
+      }
+    }
+
     validateUnique(config.objectives ?? [], 'id', configScope);
     for (const objective of config.objectives ?? []) {
       if (objective.targetSectorId && !sectorIds.has(objective.targetSectorId)) {

@@ -3,7 +3,7 @@
 // Renders the full sector map from data/map.js.
 
 import { getActiveMap, getSectorById } from '../data/map.js?v=39';
-import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=39';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=40';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DEFAULT_VIEWBOX = { width: 1200, height: 820 };
@@ -272,6 +272,7 @@ export class SectorMapView {
     this.sectorElements = new Map();
     this.labelElements = new Map();
     this.pinElements = new Map();
+    this.fireLayer = null;
     this.unitLayer = null;
     this.anchorLayer = null;
   }
@@ -330,6 +331,7 @@ export class SectorMapView {
 
     const background = this._buildBackgroundImage();
     const sectorLayer = createSvgEl('g');
+    const fireLayer = createSvgEl('g');
     const labelLayer = createSvgEl('g');
     const anchorLayer = createSvgEl('g');
     const unitLayer = createSvgEl('g');
@@ -337,10 +339,11 @@ export class SectorMapView {
 
     svg.append(defs);
     if (background) svg.appendChild(background);
-    svg.append(sectorLayer, labelLayer, anchorLayer, unitLayer, pinLayer);
+    svg.append(sectorLayer, fireLayer, labelLayer, anchorLayer, unitLayer, pinLayer);
     shell.appendChild(svg);
     this.mount.appendChild(shell);
     this.svg = svg;
+    this.fireLayer = fireLayer;
     this.anchorLayer = anchorLayer;
     this.unitLayer = unitLayer;
 
@@ -554,9 +557,83 @@ export class SectorMapView {
     }
 
     this._renderAnchors(state);
+    this._renderFirePreview(state);
     this._renderUnitTokens(state);
 
     return this;
+  }
+
+  _renderFirePreview(state) {
+    if (!this.fireLayer) return;
+    this.fireLayer.innerHTML = '';
+
+    const preview = state.firePreview;
+    const origin = asPoint(preview?.origin?.point);
+    const maxRange = Number(preview?.maxRange);
+    if (!preview || !origin || !Number.isFinite(maxRange) || maxRange <= 0) return;
+
+    const minRange = Number(preview.minRange) || 0;
+    const sectorMeta = new Map((preview.sectors ?? []).map((item) => [item.id, item]));
+
+    const rangeGroup = createSvgEl('g');
+    rangeGroup.setAttribute('pointer-events', 'none');
+    rangeGroup.setAttribute('opacity', '0.95');
+
+    const outer = createSvgEl('circle');
+    outer.setAttribute('cx', `${origin.x}`);
+    outer.setAttribute('cy', `${origin.y}`);
+    outer.setAttribute('r', `${maxRange}`);
+    outer.setAttribute('fill', 'rgba(245,190,90,0.055)');
+    outer.setAttribute('stroke', 'rgba(245,190,90,0.72)');
+    outer.setAttribute('stroke-width', '2');
+    outer.setAttribute('stroke-dasharray', '8 8');
+    outer.setAttribute('vector-effect', 'non-scaling-stroke');
+    rangeGroup.appendChild(outer);
+
+    if (minRange > 0) {
+      const inner = createSvgEl('circle');
+      inner.setAttribute('cx', `${origin.x}`);
+      inner.setAttribute('cy', `${origin.y}`);
+      inner.setAttribute('r', `${minRange}`);
+      inner.setAttribute('fill', 'rgba(5,8,12,0.1)');
+      inner.setAttribute('stroke', 'rgba(245,190,90,0.32)');
+      inner.setAttribute('stroke-width', '1.2');
+      inner.setAttribute('stroke-dasharray', '5 7');
+      inner.setAttribute('vector-effect', 'non-scaling-stroke');
+      rangeGroup.appendChild(inner);
+    }
+
+    const originDot = createSvgEl('circle');
+    originDot.setAttribute('cx', `${origin.x}`);
+    originDot.setAttribute('cy', `${origin.y}`);
+    originDot.setAttribute('r', '7');
+    originDot.setAttribute('fill', 'rgba(245,190,90,0.98)');
+    originDot.setAttribute('stroke', 'rgba(16,20,26,0.94)');
+    originDot.setAttribute('stroke-width', '2');
+    rangeGroup.appendChild(originDot);
+
+    this.fireLayer.appendChild(rangeGroup);
+
+    for (const rawSector of this.map?.sectors ?? []) {
+      const meta = sectorMeta.get(rawSector.id);
+      if (!meta) continue;
+      const sector = state.sectorsById?.[rawSector.id] ?? this._sectorById(rawSector.id) ?? rawSector;
+      const polygon = createSvgEl('polygon');
+      polygon.setAttribute('points', toPointsString(sector.polygon || []));
+      polygon.setAttribute('pointer-events', 'none');
+      polygon.setAttribute('vector-effect', 'non-scaling-stroke');
+      polygon.setAttribute('fill', meta.knownContact
+        ? 'rgba(255,92,92,0.16)'
+        : meta.observed
+          ? 'rgba(245,190,90,0.13)'
+          : 'rgba(245,190,90,0.07)');
+      polygon.setAttribute('stroke', meta.knownContact
+        ? 'rgba(255,110,110,0.7)'
+        : 'rgba(245,190,90,0.42)');
+      polygon.setAttribute('stroke-width', meta.knownContact ? '2.4' : '1.6');
+      polygon.setAttribute('stroke-dasharray', '6 6');
+      this.fireLayer.appendChild(polygon);
+    }
   }
 
   _renderAnchors(state) {
@@ -731,6 +808,7 @@ export class SectorMapView {
     this.sectorElements.clear();
     this.labelElements.clear();
     this.pinElements.clear();
+    this.fireLayer = null;
   }
 }
 

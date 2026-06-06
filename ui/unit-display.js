@@ -63,6 +63,11 @@ function baseActivity(unit) {
   }
 
   const command = String(unit.command ?? '');
+  if (unit.type === 'artillery') {
+    if (command.includes('지원사격')) return { text: '지원사격 완료', tone: 'warn' };
+    if (command.includes('포격')) return { text: '포격대기', tone: 'idle' };
+  }
+
   if (command.includes('정찰')) {
     const rs = unit.meta?.reconState;
     if (rs && rs.sectorId === unit.sectorId && !rs.setupDone) {

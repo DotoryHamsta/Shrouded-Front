@@ -81,3 +81,8 @@ export function getScenarioEnemySummariesForMap(scenario = activeScenario, mapOr
     }
   ]));
 }
+
+export function getScenarioSupportUnits(scenario = activeScenario, mapOrId = null) {
+  const config = getScenarioMapConfig(scenario, mapOrId);
+  return clone(config.supportUnits ?? []);
+}

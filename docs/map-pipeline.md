@@ -51,8 +51,10 @@ Use scenario JSON for:
 - start sector and comm anchors when they differ by stage
 - mission objectives
 - hidden enemy setup (`enemyForces`)
+- support assets such as artillery (`supportUnits`) and their map-specific fire profiles
 
 Keep enemy placement out of map modules. That lets the same terrain map support different stages.
+Keep support-unit placement out of map modules for the same reason: the terrain can stay reusable while a stage decides whether a battery, convoy, or HQ asset exists.
 
 ## Sector Editing Checklist
 

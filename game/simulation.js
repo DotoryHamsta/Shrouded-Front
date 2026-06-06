@@ -11,8 +11,9 @@ import {
   getScenarioEnemySummariesForMap,
   getScenarioObjectives,
   getScenarioOperationConfig,
-  getScenarioStartSectorId
-} from '../data/scenarios/index.js?v=39';
+  getScenarioStartSectorId,
+  getScenarioSupportUnits
+} from '../data/scenarios/index.js?v=40';
 import { Sector } from './sector.js?v=39';
 import { MINUTES_PER_HOUR, Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=28';
 import {
@@ -99,7 +100,7 @@ function clonePlainObject(value) {
 }
 
 export class Simulation {
-  constructor({ map = MAP, scenario = DEFAULT_SCENARIO, units = [], reports = [], commAnchors = null, operation = null } = {}) {
+  constructor({ map = MAP, scenario = DEFAULT_SCENARIO, units = [], reports = [], commAnchors = null, operation = null, supportUnits = null } = {}) {
     this.map = map;
     this.scenario = clonePlainObject(scenario ?? DEFAULT_SCENARIO);
     this.operationConfig = {
@@ -134,7 +135,13 @@ export class Simulation {
     this.commAnchors = Array.isArray(configuredAnchors) ? configuredAnchors.map((a) => ({ ...a })) : [];
 
     this._buildSectors();
-    this._ingestUnits(units);
+    const scenarioSupportUnits = Array.isArray(supportUnits)
+      ? supportUnits
+      : getScenarioSupportUnits(this.scenario, this.map);
+    this._ingestUnits([
+      ...(Array.isArray(units) ? units : []),
+      ...(Array.isArray(scenarioSupportUnits) ? scenarioSupportUnits : [])
+    ]);
     this._ingestReports(reports);
     this._deriveSupplyNodes();
   }
@@ -452,6 +459,133 @@ export class Simulation {
     return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor * capabilityFactor), this.simMinutesPerTick);
   }
 
+  _pointFrom(value, fallback = { x: 0, y: 0 }) {
+    if (Array.isArray(value) && value.length >= 2) {
+      const [x, y] = value;
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : { ...fallback };
+    }
+    if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) {
+      return { x: value.x, y: value.y };
+    }
+    return { ...fallback };
+  }
+
+  _distanceBetween(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  _sectorElevation(sector) {
+    if (!sector?.elevation) return 220;
+    const min = Number(sector.elevation.min);
+    const max = Number(sector.elevation.max);
+    if (Number.isFinite(min) && Number.isFinite(max)) return (min + max) / 2;
+    if (Number.isFinite(min)) return min;
+    if (Number.isFinite(max)) return max;
+    return 220;
+  }
+
+  _fireProfile(unit) {
+    const profile = unit?.meta?.fireProfile && typeof unit.meta.fireProfile === 'object'
+      ? unit.meta.fireProfile
+      : {};
+    const sector = this.getSector(unit?.sectorId);
+    return {
+      label: profile.label ?? 'Battery Position',
+      point: this._pointFrom(profile.point, sector?.center ?? { x: 0, y: 0 }),
+      elevation: Number.isFinite(profile.elevation)
+        ? profile.elevation
+        : this._sectorElevation(sector),
+      minRange: Number.isFinite(profile.minRange) ? Math.max(0, profile.minRange) : 60,
+      maxRange: Number.isFinite(profile.maxRange) ? Math.max(120, profile.maxRange) : 560,
+      blast: Number.isFinite(profile.blast) ? Math.max(1, profile.blast) : 7
+    };
+  }
+
+  _targetPoint(sector) {
+    return this._pointFrom(sector?.center ?? sector?.labelPoint);
+  }
+
+  _hasFireObservation(sector) {
+    if (!sector) return false;
+    if (sector.enemySummary || sector.reconProgress >= 80) return true;
+
+    for (const unit of this.units.values()) {
+      if (!isUnitAlive(unit) || unit.commConnected === false) continue;
+      const reconState = unit.meta?.reconState;
+      if (reconState?.sectorId === sector.id && reconState.setupDone) return true;
+    }
+
+    return false;
+  }
+
+  _terrainFireFactor(sector) {
+    const factors = {
+      plain: 1,
+      valley: 0.86,
+      ridge: 0.78,
+      forest: 0.68,
+      swamp: 0.62,
+      river: 0.82
+    };
+    return factors[sector?.terrain] ?? 0.85;
+  }
+
+  _elevationFireFactor(elevationDelta) {
+    if (elevationDelta >= 140) return 1.12;
+    if (elevationDelta >= 60) return 1.06;
+    if (elevationDelta <= -180) return 0.76;
+    if (elevationDelta <= -90) return 0.86;
+    return 1;
+  }
+
+  _applyFireDamage(unit, sector, estimate) {
+    const visibleEnemy = sector.enemySummary;
+    const hiddenEnemy = sector.hiddenEnemySummary;
+    const target = visibleEnemy ?? hiddenEnemy;
+    if (!target || !Number.isFinite(target.size) || target.size <= 0) {
+      return { hadTarget: false, neutralized: false };
+    }
+
+    const profile = this._fireProfile(unit);
+    const low = Math.max(2, Math.round(profile.blast * 0.55));
+    const high = Math.max(low, Math.round(profile.blast * 1.25 + unit.level));
+    const capability = this._capabilityDelayFactor(this._capabilityScore(unit, 'combat'), {
+      bonus: 0.14,
+      penalty: 0.1
+    });
+    const rawDamage = randomInt(low, high)
+      * this._terrainFireFactor(sector)
+      * this._elevationFireFactor(estimate.elevationDelta)
+      / capability;
+    const damage = Math.max(1, Math.round(rawDamage));
+    const nextSize = Math.max(0, target.size - damage);
+    const nextEnemy = { ...target, size: nextSize };
+
+    if (visibleEnemy) {
+      sector.enemySummary = nextSize > 0 ? { ...nextEnemy } : null;
+    }
+    if (hiddenEnemy) {
+      sector.hiddenEnemySummary = nextSize > 0 ? { ...nextEnemy } : null;
+    }
+
+    return {
+      hadTarget: true,
+      neutralized: nextSize <= 0,
+      damageBand: damage >= 9 ? 'heavy' : damage >= 5 ? 'moderate' : 'light'
+    };
+  }
+
+  _fireEffectText(result, observed) {
+    if (!result.hadTarget) return '효과 미확인';
+    if (!observed) return '효과 미확인';
+    if (result.neutralized) return '적 활동 중지 추정';
+    if (result.damageBand === 'heavy') return '유의미한 피해 추정';
+    if (result.damageBand === 'moderate') return '제압 및 피해 추정';
+    return '제압 효과 추정';
+  }
+
   _pathToTarget(fromId, targetId) {
     if (!fromId || !targetId || !this.sectors.has(fromId) || !this.sectors.has(targetId)) return null;
     if (fromId === targetId) return [fromId];
@@ -597,6 +731,64 @@ export class Simulation {
       safeOnStationMinutes: Math.max(0, Math.round(safeOnStationMinutes)),
       risk: marginFoodHours < 0 ? 'insufficient' : marginFoodHours < 12 ? 'tight' : 'safe'
     };
+  }
+
+  estimateFireMission(unitId, targetSectorId) {
+    const unit = this.getUnit(unitId);
+    const targetSector = this.getSector(targetSectorId);
+    if (!unit || unit.type !== UNIT_TYPES.ARTILLERY || !targetSector) return null;
+
+    const profile = this._fireProfile(unit);
+    const targetPoint = this._targetPoint(targetSector);
+    const distance = this._distanceBetween(profile.point, targetPoint);
+    const targetElevation = this._sectorElevation(targetSector);
+    const elevationDelta = profile.elevation - targetElevation;
+    const inRange = distance >= profile.minRange && distance <= profile.maxRange;
+    const observed = this._hasFireObservation(targetSector);
+    const knownContact = Boolean(targetSector.enemySummary);
+    const terrainFactor = this._terrainFireFactor(targetSector);
+    const elevationFactor = this._elevationFireFactor(elevationDelta);
+    const expectedEffect = terrainFactor * elevationFactor >= 1.04
+      ? '양호'
+      : terrainFactor * elevationFactor >= 0.82
+        ? '보통'
+        : '낮음';
+
+    return {
+      targetSectorId,
+      origin: {
+        label: profile.label,
+        point: profile.point,
+        elevation: profile.elevation
+      },
+      targetPoint,
+      distance: Math.round(distance),
+      minRange: profile.minRange,
+      maxRange: profile.maxRange,
+      elevationDelta: Math.round(elevationDelta),
+      inRange,
+      observed,
+      knownContact,
+      ammoRemaining: unit.ammo ?? 0,
+      expectedEffect
+    };
+  }
+
+  listFireTargets(unitId) {
+    const unit = this.getUnit(unitId);
+    if (!unit || unit.type !== UNIT_TYPES.ARTILLERY) return [];
+
+    return [...this.sectors.values()]
+      .map((sector) => ({
+        sector: sector.toJSON(),
+        estimate: this.estimateFireMission(unitId, sector.id)
+      }))
+      .filter((item) => item.estimate?.inRange)
+      .sort((a, b) => {
+        if (a.estimate.knownContact !== b.estimate.knownContact) return a.estimate.knownContact ? -1 : 1;
+        if (a.estimate.observed !== b.estimate.observed) return a.estimate.observed ? -1 : 1;
+        return a.estimate.distance - b.estimate.distance;
+      });
   }
 
   // Breadth-first search over the sector adjacency graph (sector.neighbors).
@@ -1236,35 +1428,7 @@ export class Simulation {
     }
 
     if (unit.type === UNIT_TYPES.ARTILLERY) {
-      if (sector.enemySummary && unit.ammo > 0) {
-        const splash = randomInt(3, 6) + Math.max(0, unit.level - 1);
-        unit.consumeAmmo(1);
-        sector.enemySummary.size = Math.max(0, sector.enemySummary.size - splash);
-        sector.setAlert(true, `포격중: ${sector.enemySummary.size}`);
-        sector.setReportSummary('포격 지원');
-
-        this.addReport(new Report({
-          time: this.time,
-          source: unit.name,
-          sectorId: sector.id,
-          sectorCode: sector.code,
-          kind: REPORT_KINDS.COMBAT,
-          classTag: sector.enemySummary.class ?? REPORT_CLASS.B,
-          summary: '포격 보고',
-          body: `${sector.code}\n피해 추정: ${splash}`,
-          enemySummary: clonePlainObject(sector.enemySummary),
-          alert: true,
-          pinned: true,
-          tags: ['artillery', 'strike'],
-          meta: { unitId: unit.id, splash }
-        }));
-
-        if (sector.enemySummary.size <= 0) {
-          sector.clearEnemySummary();
-          sector.setAlert(false);
-          sector.setReportSummary('적 전력 소멸');
-        }
-      }
+      unit.setCommand(unit.command || '포격대기');
       return;
     }
   }
@@ -1428,6 +1592,83 @@ export class Simulation {
       ? `현장 체류 ${Math.round(unit.meta.reconMission.durationMinutes / MINUTES_PER_HOUR)}시간`
       : '';
     return this.issueOrder(unitId, '정찰', { targetSectorId, note: durationNote });
+  }
+
+  issueFireOrder(unitId, targetSectorId) {
+    const unit = this.getUnit(unitId);
+    const sector = this.getSector(targetSectorId);
+    if (!unit || !unit.isAlive || unit.type !== UNIT_TYPES.ARTILLERY || !sector) return null;
+    if (!unit.commConnected) return { blocked: 'disconnected', unitId };
+    if ((unit.ammo ?? 0) <= 0) return { blocked: 'noAmmo', unitId };
+
+    const estimate = this.estimateFireMission(unitId, targetSectorId);
+    if (!estimate?.inRange) return { blocked: 'outOfRange', unitId, targetSectorId };
+
+    unit.consumeAmmo(1);
+    unit.setCommand('지원사격');
+    unit.setTargetSector(null);
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.lastFireMission = {
+      targetSectorId,
+      time: this.time,
+      observed: estimate.observed,
+      distance: estimate.distance,
+      elevationDelta: estimate.elevationDelta
+    };
+
+    const result = this._applyFireDamage(unit, sector, estimate);
+    const effectText = this._fireEffectText(result, estimate.observed);
+    const observationText = estimate.observed ? '관측 가능' : '관측 없음';
+
+    if (estimate.observed) {
+      sector.setControl('revealed');
+      sector.setReportSummary(effectText);
+      if (result.hadTarget && !result.neutralized) {
+        sector.setAlert(true, '포격 효과 재확인 필요');
+      } else if (result.neutralized) {
+        sector.setAlert(false);
+      }
+    } else if (sector.control !== 'unseen') {
+      sector.setReportSummary('포격 지점 - 효과 미확인');
+    }
+
+    const report = new Report({
+      time: this.time,
+      source: unit.name,
+      sectorId: sector.id,
+      sectorCode: sector.code,
+      kind: REPORT_KINDS.COMBAT,
+      classTag: estimate.observed ? REPORT_CLASS.B : REPORT_CLASS.C,
+      summary: '지원사격',
+      body: [
+        `${sector.code}`,
+        `탄착: 1발`,
+        `관측: ${observationText}`,
+        `효과: ${effectText}`,
+        `잔여탄: ${unit.ammo}`
+      ].join('\n'),
+      alert: estimate.observed && result.hadTarget && !result.neutralized,
+      pinned: estimate.observed && result.hadTarget,
+      tags: ['artillery', 'fire-mission', estimate.observed ? 'observed' : 'unobserved'],
+      meta: {
+        unitId,
+        targetSectorId,
+        observed: estimate.observed,
+        distance: estimate.distance,
+        elevationDelta: estimate.elevationDelta,
+        effect: effectText,
+        ammoRemaining: unit.ammo
+      }
+    });
+
+    this.addReport(report);
+    return {
+      unitId,
+      targetSectorId,
+      observed: estimate.observed,
+      effect: effectText,
+      ammoRemaining: unit.ammo
+    };
   }
 
   reorganizeUnit(unitId, { leader = null, cohesionPenalty = 18, reason = '작전 단위 재편성' } = {}) {

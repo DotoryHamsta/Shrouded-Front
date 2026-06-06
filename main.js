@@ -1,22 +1,22 @@
-import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=39';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=40';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
 import { DEFAULT_MAP_ID, codeForSector, getActiveMap, getMapById, setActiveMap } from './data/map.js?v=39';
 import {
   DEFAULT_SCENARIO,
   getScenarioCommAnchors,
   getScenarioOperationConfig
-} from './data/scenarios/index.js?v=39';
+} from './data/scenarios/index.js?v=40';
 import {
   CAPABILITY_KEYS,
   CAPABILITY_LABELS,
   DEFAULT_COMM_ANCHORS,
   capabilityBand
 } from './game/formation.js?v=39';
-import { createMapView } from './ui/map.js?v=39';
+import { createMapView } from './ui/map.js?v=40';
 import { createDetailPanel } from './ui/details.js?v=39';
 import { createOperationsBoard } from './ui/operations.js?v=39';
 import { createUnitRoster } from './ui/roster.js?v=39';
-import { createFormationSetup } from './ui/setup.js?v=39';
+import { createFormationSetup } from './ui/setup.js?v=40';
 
 const OPERATION_CONFIG = getScenarioOperationConfig(DEFAULT_SCENARIO);
 const TICK_MS = OPERATION_CONFIG.tickMs ?? 1000;
@@ -158,12 +158,37 @@ function buildSectorsById(sectors = []) {
   }, {});
 }
 
+function buildFirePreview() {
+  const unit = state.units.find((item) => item.id === selectedUnitId);
+  if (!unit || unit.type !== 'artillery') return null;
+
+  const targets = simulation.listFireTargets(unit.id);
+  const origin = targets[0]?.estimate?.origin
+    ?? simulation.estimateFireMission(unit.id, unit.sectorId)?.origin
+    ?? null;
+  if (!origin) return null;
+
+  return {
+    unitId: unit.id,
+    origin,
+    minRange: targets[0]?.estimate?.minRange ?? 0,
+    maxRange: targets[0]?.estimate?.maxRange ?? 0,
+    sectors: targets.map(({ sector, estimate }) => ({
+      id: sector.id,
+      observed: estimate.observed,
+      knownContact: estimate.knownContact,
+      expectedEffect: estimate.expectedEffect
+    }))
+  };
+}
+
 function getViewState() {
   return {
     ...state,
     selectedSectorId,
     hoveredSectorId,
     selectedUnitId,
+    firePreview: buildFirePreview(),
     sectorsById: buildSectorsById(state.sectors),
     sectorUnits: buildSectorUnits(state.units)
   };
@@ -461,6 +486,43 @@ function renderUnitCommand() {
     `
     : '';
 
+  const artilleryTargets = unit.type === 'artillery'
+    ? simulation.listFireTargets(unit.id)
+    : [];
+  const artilleryButtons = unit.type === 'artillery'
+    ? `
+      <div class="sf-command-section">
+        <div class="sf-command-section-title">지원사격 · 잔여탄 ${escapeHtml(unit.ammo ?? 0)}</div>
+        <div class="sf-mission-list">
+          ${artilleryTargets.map(({ sector, estimate }) => {
+            const elevation = estimate.elevationDelta > 0
+              ? `+${estimate.elevationDelta}m`
+              : `${estimate.elevationDelta}m`;
+            const meta = estimateLine([
+              `거리 ${estimate.distance}`,
+              `고도 ${elevation}`,
+              estimate.observed ? '관측 가능' : '효과 미확인',
+              `예상 ${estimate.expectedEffect}`
+            ]);
+            const tone = estimate.knownContact
+              ? 'danger'
+              : estimate.observed
+                ? 'warn'
+                : '';
+            return commandButton({
+              action: 'fire',
+              sectorId: sector.id,
+              label: `${sector.code || sector.id} 포격`,
+              detail: meta,
+              disabled: disconnected || returning || (unit.ammo ?? 0) <= 0,
+              tone
+            });
+          }).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
   const returnEstimate = nearestSupplyId ? simulation.estimateReturnOrder(unit.id) : null;
   const returnButton = commandButton({
     action: 'return',
@@ -543,6 +605,8 @@ function renderUnitCommand() {
 
     ${reconButtons}
 
+    ${artilleryButtons}
+
     <div class="sf-command-section">
       <div class="sf-command-section-title">보급</div>
       <div class="sf-command-grid">${returnButton}</div>
@@ -570,11 +634,19 @@ function handleUnitCommandAction(event) {
     });
   } else if (action === 'return') {
     result = simulation.issueReturnOrder(unit.id);
+  } else if (action === 'fire' && sectorId) {
+    result = simulation.issueFireOrder(unit.id, sectorId);
   }
 
   unitCommandNotice = result?.blocked === 'disconnected'
     ? '통신 두절로 명령을 전달하지 못했다.'
-    : '';
+    : result?.blocked === 'noAmmo'
+      ? '잔여 포탄이 없다.'
+      : result?.blocked === 'outOfRange'
+        ? '목표가 사거리 밖이다.'
+        : result?.effect
+          ? `포격 완료 — ${result.effect}`
+          : '';
 
   state = simulation.getState();
   renderAll();

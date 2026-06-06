@@ -29,7 +29,7 @@ import {
   DEFAULT_SCENARIO,
   getScenarioMapConfig,
   getScenarioStartSectorId
-} from '../data/scenarios/index.js?v=39';
+} from '../data/scenarios/index.js?v=40';
 
 function escapeHtml(value) {
   return String(value ?? '')

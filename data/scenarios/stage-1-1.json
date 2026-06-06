@@ -63,8 +63,51 @@
       ],
       "enemyForces": [
         { "id": "enemy-a2-screen", "sectorId": "A2", "class": "C", "size": 12, "type": "recon" },
-        { "id": "enemy-c3-main", "sectorId": "C3", "class": "B", "size": 40, "type": "infantry" },
-        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 18, "type": "artillery" }
+        { "id": "enemy-b4-screen", "sectorId": "B4", "class": "C", "size": 16, "type": "recon" },
+        { "id": "enemy-c3-main", "sectorId": "C3", "class": "B", "size": 40, "type": "infantry" }
+      ],
+      "supportUnits": [
+        {
+          "id": "SUP-ARTY-1",
+          "type": "artillery",
+          "name": "Battery A",
+          "sectorId": "D3",
+          "originSectorId": "D3",
+          "missionRole": "support",
+          "echelon": "battery",
+          "level": 2,
+          "maxHealth": 80,
+          "health": 80,
+          "food": 36,
+          "ammo": 6,
+          "command": "포격대기",
+          "composition": { "leader": 1, "weapons": 5 },
+          "capabilities": {
+            "recon": 18,
+            "communication": 58,
+            "combat": 78,
+            "sustainment": 46,
+            "mobility": 22
+          },
+          "leader": {
+            "id": "ART-LT-KANG",
+            "name": "Lt. Kang",
+            "billet": "포대장",
+            "trait": "signal",
+            "rating": 2
+          },
+          "meta": {
+            "supportAsset": true,
+            "fireProfile": {
+              "label": "Forward Battery Position",
+              "point": [585, 595],
+              "elevation": 260,
+              "minRange": 80,
+              "maxRange": 620,
+              "blast": 8
+            }
+          }
+        }
       ]
     },
     "southern-river-crossing-v1": {
@@ -97,8 +140,51 @@
       ],
       "enemyForces": [
         { "id": "enemy-a2-screen", "sectorId": "A2", "class": "C", "size": 10, "type": "recon" },
-        { "id": "enemy-c2-bridge", "sectorId": "C2", "class": "B", "size": 34, "type": "infantry" },
-        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 14, "type": "artillery" }
+        { "id": "enemy-b3-bridge", "sectorId": "B3", "class": "C", "size": 18, "type": "infantry" },
+        { "id": "enemy-c2-bridge", "sectorId": "C2", "class": "B", "size": 34, "type": "infantry" }
+      ],
+      "supportUnits": [
+        {
+          "id": "SUP-ARTY-1",
+          "type": "artillery",
+          "name": "Battery A",
+          "sectorId": "D3",
+          "originSectorId": "D3",
+          "missionRole": "support",
+          "echelon": "battery",
+          "level": 2,
+          "maxHealth": 80,
+          "health": 80,
+          "food": 36,
+          "ammo": 6,
+          "command": "포격대기",
+          "composition": { "leader": 1, "weapons": 5 },
+          "capabilities": {
+            "recon": 18,
+            "communication": 58,
+            "combat": 78,
+            "sustainment": 46,
+            "mobility": 22
+          },
+          "leader": {
+            "id": "ART-LT-KANG",
+            "name": "Lt. Kang",
+            "billet": "포대장",
+            "trait": "signal",
+            "rating": 2
+          },
+          "meta": {
+            "supportAsset": true,
+            "fireProfile": {
+              "label": "Bridge Battery Position",
+              "point": [625, 585],
+              "elevation": 210,
+              "minRange": 80,
+              "maxRange": 620,
+              "blast": 8
+            }
+          }
+        }
       ]
     },
     "eastern-ridge-line-v1": {
@@ -131,8 +217,51 @@
       ],
       "enemyForces": [
         { "id": "enemy-a2-ridge", "sectorId": "A2", "class": "B", "size": 22, "type": "infantry" },
-        { "id": "enemy-c3-road", "sectorId": "C3", "class": "B", "size": 32, "type": "infantry" },
-        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 16, "type": "artillery" }
+        { "id": "enemy-b4-ravine", "sectorId": "B4", "class": "C", "size": 14, "type": "recon" },
+        { "id": "enemy-c3-road", "sectorId": "C3", "class": "B", "size": 32, "type": "infantry" }
+      ],
+      "supportUnits": [
+        {
+          "id": "SUP-ARTY-1",
+          "type": "artillery",
+          "name": "Battery A",
+          "sectorId": "D3",
+          "originSectorId": "D3",
+          "missionRole": "support",
+          "echelon": "battery",
+          "level": 2,
+          "maxHealth": 80,
+          "health": 80,
+          "food": 36,
+          "ammo": 6,
+          "command": "포격대기",
+          "composition": { "leader": 1, "weapons": 5 },
+          "capabilities": {
+            "recon": 18,
+            "communication": 58,
+            "combat": 78,
+            "sustainment": 46,
+            "mobility": 22
+          },
+          "leader": {
+            "id": "ART-LT-KANG",
+            "name": "Lt. Kang",
+            "billet": "포대장",
+            "trait": "signal",
+            "rating": 2
+          },
+          "meta": {
+            "supportAsset": true,
+            "fireProfile": {
+              "label": "Ridge Battery Position",
+              "point": [575, 590],
+              "elevation": 340,
+              "minRange": 80,
+              "maxRange": 640,
+              "blast": 8
+            }
+          }
+        }
       ]
     }
   }
