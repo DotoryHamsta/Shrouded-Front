@@ -698,6 +698,10 @@ body{
   background:#8fd49a;
 }
 
+.sf-command-bar.cohesion i{
+  background:#d7c06a;
+}
+
 .sf-command-section{
   margin-top:14px;
 }
@@ -1035,6 +1039,7 @@ body{
 
 .sf-unit-bar-fill.hp { background: #6fb0ff; }
 .sf-unit-bar-fill.food { background: #8fd49a; }
+.sf-unit-bar-fill.cohesion { background: #d7c06a; }
 
 .sf-unit-bar-value {
   width: 58px;

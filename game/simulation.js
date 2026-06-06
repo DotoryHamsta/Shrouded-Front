@@ -11,9 +11,10 @@ import {
   Unit,
   UNIT_TYPES,
   UNIT_STATUS,
+  LEADER_TRAITS,
   isUnitAlive,
   unitLabel
-} from './unit.js?v=28';
+} from './unit.js?v=29';
 
 export const SIM_MINUTES_PER_TICK = 15;
 
@@ -304,20 +305,67 @@ export class Simulation {
     return penalties[sector.terrain] ?? 1.1;
   }
 
+  _cohesionDelayFactor(unit, maxPenalty = 0.28) {
+    const cohesion = Number.isFinite(unit?.cohesion) ? unit.cohesion : 70;
+    const penalty = Math.max(0, 72 - cohesion) / 72 * maxPenalty;
+    const bonus = Math.max(0, cohesion - 86) / 14 * 0.04;
+    return clamp(1 + penalty - bonus, 0.94, 1 + maxPenalty);
+  }
+
+  _leaderFactor(unit, domain) {
+    const trait = unit?.leaderTrait;
+    if (domain === 'reconSetup' && trait === LEADER_TRAITS.SCOUT) return 0.9;
+    if (domain === 'reconReport' && trait === LEADER_TRAITS.SIGNAL) return 0.88;
+    if (domain === 'reconReport' && trait === LEADER_TRAITS.SCOUT) return 0.94;
+    if (domain === 'movement' && trait === LEADER_TRAITS.CAREFUL) return 1.05;
+    if (domain === 'movement' && trait === LEADER_TRAITS.STEADY) return 0.98;
+    if (domain === 'sustainment' && trait === LEADER_TRAITS.CAREFUL) return 0.94;
+    if (domain === 'sustainment' && trait === LEADER_TRAITS.ASSAULT) return 1.04;
+    return 1;
+  }
+
+  _unitActivity(unit) {
+    const moving = Boolean(unit?.targetSectorId && unit.sectorId !== unit.targetSectorId);
+    const reconning = unit?.type === UNIT_TYPES.RECON && String(unit.command ?? '').includes('정찰');
+    const returning = unit?.status === UNIT_STATUS.RETURNING || String(unit?.command ?? '').includes('복귀');
+    const engaged = unit?.status === UNIT_STATUS.ENGAGED || unit?.isInCombat;
+    if (engaged) return 'engaged';
+    if (returning) return 'returning';
+    if (moving) return 'moving';
+    if (reconning) return 'recon';
+    return 'idle';
+  }
+
+  _tickUnitCohesion(unit) {
+    if (!unit || !unit.isAlive) return;
+    const activity = this._unitActivity(unit);
+    unit.recoverCohesion(SIM_MINUTES_PER_TICK, {
+      activity,
+      atSupply: this._isSupplySector(unit.sectorId)
+    });
+  }
+
   _setupMinutes(sector, unit) {
     const baseMinutes = TERRAIN_SETUP_MINUTES[sector?.terrain] ?? (5 * MINUTES_PER_HOUR);
     const reduction = (Math.min(unit.level, 5) - 1) * 0.12;
-    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction)));
+    const cohesionDelay = this._cohesionDelayFactor(unit, 0.32);
+    const leaderFactor = this._leaderFactor(unit, 'reconSetup');
+    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction) * cohesionDelay * leaderFactor));
   }
 
   _reportIntervalMinutes(unit) {
-    return REPORT_INTERVAL_MINUTES_BY_LEVEL[Math.min(unit.level - 1, REPORT_INTERVAL_MINUTES_BY_LEVEL.length - 1)];
+    const base = REPORT_INTERVAL_MINUTES_BY_LEVEL[Math.min(unit.level - 1, REPORT_INTERVAL_MINUTES_BY_LEVEL.length - 1)];
+    const cohesionDelay = this._cohesionDelayFactor(unit, 0.22);
+    const leaderFactor = this._leaderFactor(unit, 'reconReport');
+    return roundToTickMinutes(base * cohesionDelay * leaderFactor);
   }
 
   _movementMinutesToEnter(sector, unit) {
     const baseMinutes = TERRAIN_MOVE_MINUTES[sector?.terrain] ?? 150;
     const moveFactor = 2 / Math.max(1, unit?.move ?? 2);
-    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor));
+    const cohesionDelay = this._cohesionDelayFactor(unit, 0.2);
+    const leaderFactor = this._leaderFactor(unit, 'movement');
+    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor));
   }
 
   _pathToTarget(fromId, targetId) {
@@ -684,7 +732,7 @@ export class Simulation {
       engaged: 2.2
     }[activity] ?? 1.0;
 
-    return base * terrainMultiplier * activityMultiplier;
+    return base * terrainMultiplier * activityMultiplier * this._leaderFactor(unit, 'sustainment');
   }
 
   _foodDrainForMinutes(unit, sector, activity, minutes) {
@@ -1137,6 +1185,7 @@ export class Simulation {
     for (const unit of this.units.values()) {
       if (!isUnitAlive(unit)) continue;
       this._decideUnitAction(unit);
+      this._tickUnitCohesion(unit);
     }
 
     // Casual report aging: pin unresolved alerts, keep latest visible.
@@ -1281,6 +1330,49 @@ export class Simulation {
     return this.issueOrder(unitId, '정찰', { targetSectorId, note: durationNote });
   }
 
+  reorganizeUnit(unitId, { leader = null, cohesionPenalty = 18, reason = '작전 단위 재편성' } = {}) {
+    const unit = this.getUnit(unitId);
+    if (!unit || !unit.isAlive) return null;
+
+    if (leader) {
+      unit.setLeader(leader, {
+        time: this.time,
+        penalty: cohesionPenalty,
+        reason
+      });
+    } else {
+      unit.applyReorgPenalty(cohesionPenalty, {
+        time: this.time,
+        reason
+      });
+    }
+
+    this.addReport(new Report({
+      time: this.time,
+      source: 'HQ',
+      sectorId: unit.sectorId,
+      sectorCode: this.getSector(unit.sectorId)?.code ?? null,
+      kind: REPORT_KINDS.COMMAND,
+      classTag: REPORT_CLASS.C,
+      summary: '재편성 명령',
+      body: [
+        `Unit: ${unit.name}`,
+        `Reason: ${reason}`,
+        `Cohesion: ${Math.round(unit.cohesion)}%`,
+        leader ? `Leader: ${unit.leader.name} (${unit.leader.traitLabel})` : null
+      ].filter(Boolean).join('\n'),
+      tags: ['command', 'reorg', unit.type],
+      meta: {
+        unitId,
+        leader: leader ? clonePlainObject(unit.leader) : null,
+        cohesion: unit.cohesion,
+        reason
+      }
+    }));
+
+    return unit.toJSON();
+  }
+
   setSectorAlert(sectorId, alert = true, label = null) {
     const sector = this.getSector(sectorId);
     if (!sector) return false;
@@ -1319,19 +1411,25 @@ export function createDefaultSimulation() {
   // Ridge sectors fall outside the 2-hop comm range of the anchors, so relays
   // must be positioned (e.g. at Plain C) to keep the lead scout connected.
   const startSector = 'D5'; // Forest D
-  const reconAt = (name, level) => Unit.recon({
+  const reconAt = (name, level, leaderName) => Unit.recon({
     name,
     sectorId: startSector,
     level,
-    command: '대기'
+    command: '대기',
+    leader: {
+      name: leaderName,
+      billet: '정찰조장',
+      trait: LEADER_TRAITS.SCOUT,
+      rating: level
+    }
   });
 
   return new Simulation({
     map: MAP,
     units: [
-      reconAt('Alpha Recon', 2),
-      reconAt('Bravo Recon', 2),
-      reconAt('Charlie Recon', 1)
+      reconAt('Alpha Recon', 2, 'Sgt. Han'),
+      reconAt('Bravo Recon', 2, 'Sgt. Baek'),
+      reconAt('Charlie Recon', 1, 'Cpl. Min')
     ],
     reports: [],
     commAnchors: [

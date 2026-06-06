@@ -2,7 +2,7 @@
 // Unit roster panel: lists all friendly units with their current activity so the
 // player can scan the force at a glance and jump to any unit on the map.
 
-import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=28';
+import { describeUnitActivity, unitTypeLabel } from './unit-display.js?v=29';
 import { codeForSector } from '../data/map.js?v=27';
 import { formatRations } from '../game/report.js?v=28';
 
@@ -71,8 +71,13 @@ export class UnitRoster {
             <span class="sf-unit-type">${escapeHtml(unitTypeLabel(unit.type))}</span>
             <span class="sf-unit-loc">${escapeHtml(sector)}</span>
           </div>
+          <div class="sf-unit-meta">
+            <span>${escapeHtml(unit.leader?.name ?? '임시 지휘관')}</span>
+            <span class="sf-unit-loc">${escapeHtml(unit.leader?.traitLabel ?? '안정 지휘')}</span>
+          </div>
           <div class="sf-unit-activity sf-act-${activity.tone}">${escapeHtml(activity.text)}</div>
           ${bar('HP', unit.health ?? 0, unit.maxHealth ?? 100, 'hp')}
+          ${bar('응집', unit.cohesion ?? 0, 100, 'cohesion', `${Math.round(unit.cohesion ?? 0)}%`)}
           ${bar('식량', unit.food ?? 0, maxFood, 'food', formatRations(unit.food ?? 0))}
         </div>
       `;

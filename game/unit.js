@@ -23,6 +23,22 @@ export const UNIT_STATUS = Object.freeze({
   HOLDING: 'holding'
 });
 
+export const LEADER_TRAITS = Object.freeze({
+  STEADY: 'steady',
+  SCOUT: 'scout',
+  ASSAULT: 'assault',
+  SIGNAL: 'signal',
+  CAREFUL: 'careful'
+});
+
+export const LEADER_TRAIT_LABELS = Object.freeze({
+  [LEADER_TRAITS.STEADY]: '안정 지휘',
+  [LEADER_TRAITS.SCOUT]: '정찰 지휘',
+  [LEADER_TRAITS.ASSAULT]: '교전 지휘',
+  [LEADER_TRAITS.SIGNAL]: '통신 지휘',
+  [LEADER_TRAITS.CAREFUL]: '신중 지휘'
+});
+
 export const UNIT_TEMPLATES = Object.freeze({
   [UNIT_TYPES.RECON]: {
     label: '정찰병',
@@ -91,6 +107,40 @@ function normalizeStatus(status) {
   return UNIT_STATUS.ACTIVE;
 }
 
+function normalizeLeaderTrait(trait) {
+  const value = String(trait ?? '').trim().toLowerCase();
+  const allowed = Object.values(LEADER_TRAITS);
+  return allowed.includes(value) ? value : LEADER_TRAITS.STEADY;
+}
+
+function defaultLeaderTrait(type) {
+  if (type === UNIT_TYPES.RECON) return LEADER_TRAITS.SCOUT;
+  if (type === UNIT_TYPES.INFANTRY) return LEADER_TRAITS.ASSAULT;
+  if (type === UNIT_TYPES.ARTILLERY) return LEADER_TRAITS.SIGNAL;
+  return LEADER_TRAITS.STEADY;
+}
+
+function normalizeLeader(leader, type, level) {
+  const raw = leader && typeof leader === 'object' ? leader : {};
+  const trait = normalizeLeaderTrait(raw.trait ?? defaultLeaderTrait(type));
+  const rating = clamp(Number(raw.rating ?? Math.min(3, Math.max(1, Math.ceil(level / 2)))), 1, 5);
+  return {
+    id: raw.id ?? `${type}-leader`,
+    name: raw.name ?? '임시 지휘관',
+    billet: raw.billet ?? '작전 리더',
+    trait,
+    traitLabel: LEADER_TRAIT_LABELS[trait],
+    rating
+  };
+}
+
+function defaultCohesion(type) {
+  if (type === UNIT_TYPES.RECON) return 78;
+  if (type === UNIT_TYPES.INFANTRY) return 72;
+  if (type === UNIT_TYPES.ARTILLERY) return 68;
+  return 70;
+}
+
 export class Unit {
   constructor({
     id = nextUnitId(),
@@ -108,6 +158,10 @@ export class Unit {
     experience = 0,
     fatigue = 0,
     morale = 100,
+    cohesion = null,
+    cohesionTarget = null,
+    leader = null,
+    deputy = null,
     carryLoad = 0,
     reconProgress = 0,
     commConnected = true,
@@ -144,12 +198,24 @@ export class Unit {
     this.experience = Math.max(0, Math.floor(experience));
     this.fatigue = clamp(fatigue, 0, 100);
     this.morale = clamp(morale, 0, 100);
+    this.cohesion = clamp(cohesion ?? defaultCohesion(this.type), 0, 100);
+    this.cohesionTarget = clamp(cohesionTarget ?? Math.max(this.cohesion, 86), 0, 100);
+    this.leader = normalizeLeader(leader, this.type, this.level);
+    this.deputy = deputy ? normalizeLeader(deputy, this.type, this.level) : null;
     this.carryLoad = clamp(carryLoad, 0, 999);
     this.reconProgress = clamp(reconProgress, 0, 100);
     this.commConnected = Boolean(commConnected);
     this.lastSeenTurn = lastSeenTurn;
     this.tags = Array.isArray(tags) ? [...tags] : [];
     this.meta = { ...meta };
+    if (!this.meta.formation || typeof this.meta.formation !== 'object') {
+      this.meta.formation = {
+        stableMinutes: 0,
+        reorgCooldownMinutes: 0,
+        lastReorgReason: null,
+        lastReorgTime: null
+      };
+    }
 
     // Runtime values used by the simulation.
     this.moveBuffer = 0;
@@ -237,24 +303,46 @@ export class Unit {
   }
 
   get combatMultiplier() {
-    if (this.isExhausted) return 0.35;
-    if (this.isHungry) return 0.7;
-    if (this.fatigue >= 75) return 0.8;
-    return 1;
+    const leaderBonus = this.leaderTrait === LEADER_TRAITS.ASSAULT ? 1.06 : 1;
+    if (this.isExhausted) return 0.35 * this.cohesionFactor;
+    if (this.isHungry) return 0.7 * this.cohesionFactor;
+    if (this.fatigue >= 75) return 0.8 * this.cohesionFactor * leaderBonus;
+    return this.cohesionFactor * leaderBonus;
   }
 
   get defenseMultiplier() {
-    if (this.isExhausted) return 0.4;
-    if (this.isHungry) return 0.75;
-    if (this.fatigue >= 75) return 0.85;
-    return 1;
+    const leaderBonus = this.leaderTrait === LEADER_TRAITS.CAREFUL ? 1.06 : 1;
+    if (this.isExhausted) return 0.4 * this.cohesionFactor;
+    if (this.isHungry) return 0.75 * this.cohesionFactor;
+    if (this.fatigue >= 75) return 0.85 * this.cohesionFactor * leaderBonus;
+    return this.cohesionFactor * leaderBonus;
+  }
+
+  get cohesionFactor() {
+    return clamp(0.72 + (this.cohesion / 100) * 0.28, 0.55, 1.04);
+  }
+
+  get leaderTrait() {
+    return this.leader?.trait ?? LEADER_TRAITS.STEADY;
+  }
+
+  get leaderLabel() {
+    return this.leader?.traitLabel ?? LEADER_TRAIT_LABELS[LEADER_TRAITS.STEADY];
+  }
+
+  get leaderRating() {
+    return clamp(Number(this.leader?.rating ?? 1), 1, 5);
+  }
+
+  get isReorganizing() {
+    return (this.meta?.formation?.reorgCooldownMinutes ?? 0) > 0;
   }
 
   get readiness() {
     const healthFactor = this.health / this.maxHealth;
     const foodFactor = this.food > 0 ? 1 : 0.6;
     const moraleFactor = this.morale / 100;
-    return clamp(Math.round(100 * healthFactor * foodFactor * moraleFactor), 0, 100);
+    return clamp(Math.round(100 * healthFactor * foodFactor * moraleFactor * this.cohesionFactor), 0, 100);
   }
 
   get summary() {
@@ -269,6 +357,10 @@ export class Unit {
       health: this.health,
       food: this.food,
       ammo: this.ammo,
+      cohesion: this.cohesion,
+      cohesionTarget: this.cohesionTarget,
+      leader: { ...this.leader },
+      deputy: this.deputy ? { ...this.deputy } : null,
       status: this.status,
       commConnected: this.commConnected,
       reconProgress: this.reconProgress,
@@ -325,6 +417,56 @@ export class Unit {
 
   setMorale(value) {
     this.morale = clamp(value, 0, 100);
+    return this;
+  }
+
+  setCohesion(value) {
+    this.cohesion = clamp(value, 0, 100);
+    return this;
+  }
+
+  setLeader(leader, { time = null, penalty = 18, reason = 'leader-change' } = {}) {
+    this.leader = normalizeLeader(leader, this.type, this.level);
+    this.applyReorgPenalty(penalty, { time, reason });
+    return this;
+  }
+
+  applyReorgPenalty(amount = 18, { time = null, reason = 'reorg', cooldownMinutes = 6 * 60 } = {}) {
+    const penalty = Math.max(0, Number(amount) || 0);
+    this.cohesion = clamp(this.cohesion - penalty, 0, 100);
+    if (!this.meta || typeof this.meta !== 'object') this.meta = {};
+    if (!this.meta.formation || typeof this.meta.formation !== 'object') this.meta.formation = {};
+    this.meta.formation.stableMinutes = 0;
+    this.meta.formation.reorgCooldownMinutes = Math.max(
+      this.meta.formation.reorgCooldownMinutes ?? 0,
+      Math.max(0, cooldownMinutes)
+    );
+    this.meta.formation.lastReorgReason = reason;
+    this.meta.formation.lastReorgTime = time;
+    return this;
+  }
+
+  recoverCohesion(minutes = 0, { activity = 'idle', atSupply = false } = {}) {
+    const elapsedHours = Math.max(0, minutes) / 60;
+    if (elapsedHours <= 0) return this;
+
+    const rates = {
+      idle: atSupply ? 1.25 : 0.85,
+      recon: 0.35,
+      moving: 0.18,
+      returning: 0.28,
+      engaged: -0.45
+    };
+    const rate = rates[activity] ?? 0.25;
+    this.cohesion = clamp(this.cohesion + rate * elapsedHours, 0, this.cohesionTarget);
+
+    if (!this.meta || typeof this.meta !== 'object') this.meta = {};
+    if (!this.meta.formation || typeof this.meta.formation !== 'object') this.meta.formation = {};
+    this.meta.formation.stableMinutes = (this.meta.formation.stableMinutes ?? 0) + minutes;
+    this.meta.formation.reorgCooldownMinutes = Math.max(
+      0,
+      (this.meta.formation.reorgCooldownMinutes ?? 0) - minutes
+    );
     return this;
   }
 
@@ -440,6 +582,7 @@ export class Unit {
     this.experience = 0;
     this.morale = clamp(this.morale + 5, 0, 100);
     this.fatigue = clamp(this.fatigue - 5, 0, 100);
+    this.cohesionTarget = clamp(this.cohesionTarget + 2, 0, 100);
     return this;
   }
 
@@ -465,7 +608,11 @@ export class Unit {
   }
 
   applyDamage(amount = 1) {
-    return this.setHealth(this.health - Math.max(0, amount));
+    const damage = Math.max(0, amount);
+    if (damage > 0) {
+      this.setCohesion(this.cohesion - Math.min(12, damage * 0.8));
+    }
+    return this.setHealth(this.health - damage);
   }
 
   repair(amount = 1) {
@@ -489,6 +636,8 @@ export class Unit {
     this.ammo = this.template.baseAmmo;
     this.fatigue = 0;
     this.morale = 100;
+    this.cohesion = defaultCohesion(this.type);
+    this.cohesionTarget = Math.max(this.cohesion, 86);
     this.reconProgress = 0;
     this.commConnected = true;
     this.turnsSinceReport = 0;
@@ -519,6 +668,10 @@ export class Unit {
       experience: this.experience,
       fatigue: this.fatigue,
       morale: this.morale,
+      cohesion: this.cohesion,
+      cohesionTarget: this.cohesionTarget,
+      leader: { ...this.leader },
+      deputy: this.deputy ? { ...this.deputy } : null,
       carryLoad: this.carryLoad,
       reconProgress: this.reconProgress,
       readiness: this.readiness,

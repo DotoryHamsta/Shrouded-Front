@@ -1,10 +1,10 @@
-import { createDefaultSimulation } from './game/simulation.js?v=29';
+import { createDefaultSimulation } from './game/simulation.js?v=30';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
 import { codeForSector } from './data/map.js?v=27';
-import { createMapView } from './ui/map.js?v=30';
+import { createMapView } from './ui/map.js?v=31';
 import { createDetailPanel } from './ui/details.js?v=28';
-import { createOperationsBoard } from './ui/operations.js?v=28';
-import { createUnitRoster } from './ui/roster.js?v=28';
+import { createOperationsBoard } from './ui/operations.js?v=29';
+import { createUnitRoster } from './ui/roster.js?v=29';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -308,6 +308,7 @@ function renderUnitCommand() {
   const atSupply = supplyIds.includes(unit.sectorId);
   const foodPct = Math.max(0, Math.min(100, (unit.food / Math.max(1, unit.maxFood ?? unit.food ?? 1)) * 100));
   const foodText = formatRations(unit.food ?? 0);
+  const cohesion = Math.max(0, Math.min(100, unit.cohesion ?? 0));
   const targetText = unit.targetSectorId ? codeForSector(unit.targetSectorId) : '-';
   const notice = unitCommandNotice
     ? `<div class="sf-command-notice">${escapeHtml(unitCommandNotice)}</div>`
@@ -421,6 +422,14 @@ function renderUnitCommand() {
         <span>통신</span>
         <strong>${disconnected ? '두절' : '연결'}</strong>
       </div>
+      <div>
+        <span>리더</span>
+        <strong>${escapeHtml(unit.leader?.name ?? '임시 지휘관')}</strong>
+      </div>
+      <div>
+        <span>성향</span>
+        <strong>${escapeHtml(unit.leader?.traitLabel ?? '안정 지휘')}</strong>
+      </div>
     </div>
 
     <div class="sf-command-bars">
@@ -433,6 +442,11 @@ function renderUnitCommand() {
         <span>식량</span>
         <div class="sf-command-bar food"><i style="width:${foodPct}%"></i></div>
         <b>${escapeHtml(foodText)}</b>
+      </div>
+      <div class="sf-command-bar-row">
+        <span>응집</span>
+        <div class="sf-command-bar cohesion"><i style="width:${cohesion}%"></i></div>
+        <b>${Math.round(cohesion)}%</b>
       </div>
     </div>
 

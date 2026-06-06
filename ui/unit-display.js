@@ -50,10 +50,12 @@ export function describeUnitActivity(unit) {
 
 function baseActivity(unit) {
   const status = String(unit.status ?? 'active').toLowerCase();
+  const reorgMinutes = unit.meta?.formation?.reorgCooldownMinutes ?? 0;
   if (status === 'dead') return { text: '전투 손실', tone: 'warn' };
   if (status === 'exhausted') return { text: '보급 복귀', tone: 'warn' };
   if (status === 'returning') return { text: '복귀 중', tone: 'warn' };
   if (status === 'engaged') return { text: '교전 중', tone: 'warn' };
+  if (reorgMinutes > 0) return { text: '재편성 적응 중', tone: 'setup' };
 
   const moving = unit.targetSectorId && unit.sectorId !== unit.targetSectorId;
   if (moving) {

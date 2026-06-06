@@ -9,7 +9,7 @@
 // - command / mission summaries
 
 import { formatRations, formatTime } from '../game/report.js?v=28';
-import { unitLabel } from '../game/unit.js?v=28';
+import { unitLabel } from '../game/unit.js?v=29';
 import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
@@ -46,6 +46,8 @@ function unitRow(unit) {
   const status = unit.status || 'active';
   const ready = unit.readiness ?? null;
   const comm = unit.commConnected ? '연결' : '두절';
+  const leader = unit.leader?.name ? `${unit.leader.name} · ${unit.leader.traitLabel ?? '-'}` : '-';
+  const cohesion = Number.isFinite(unit.cohesion) ? `${Math.round(unit.cohesion)}%` : '-';
   const recon = Number.isFinite(unit.reconProgress) ? `${Math.round(unit.reconProgress)}%` : '0%';
   return `
     <tr>
@@ -58,6 +60,8 @@ function unitRow(unit) {
       <td>${escapeHtml(String(ammo))}</td>
       <td>${escapeHtml(status)}</td>
       <td>${escapeHtml(comm)}</td>
+      <td>${escapeHtml(leader)}</td>
+      <td>${escapeHtml(cohesion)}</td>
       <td>${ready !== null ? escapeHtml(String(ready)) : '-'}</td>
       <td>${escapeHtml(recon)}</td>
     </tr>
@@ -209,12 +213,14 @@ export class OperationsBoard {
                     <th>탄약</th>
                     <th>상태</th>
                     <th>통신</th>
+                    <th>리더</th>
+                    <th>응집</th>
                     <th>준비도</th>
                     <th>정찰</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="11" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
+                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="13" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
                 </tbody>
               </table>
             </div>

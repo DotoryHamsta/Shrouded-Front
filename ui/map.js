@@ -3,7 +3,7 @@
 // Renders the full sector map from data/map.js.
 
 import { MAP, getSectorById } from '../data/map.js?v=27';
-import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=28';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=29';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
