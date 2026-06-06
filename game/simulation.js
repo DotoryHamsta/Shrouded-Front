@@ -4,8 +4,16 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js?v=38';
-import { Sector } from './sector.js?v=38';
+import { MAP } from '../data/map.js?v=39';
+import {
+  DEFAULT_SCENARIO,
+  getScenarioCommAnchors,
+  getScenarioEnemySummariesForMap,
+  getScenarioObjectives,
+  getScenarioOperationConfig,
+  getScenarioStartSectorId
+} from '../data/scenarios/index.js?v=39';
+import { Sector } from './sector.js?v=39';
 import { MINUTES_PER_HOUR, Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=28';
 import {
   Unit,
@@ -15,9 +23,8 @@ import {
   isUnitAlive
 } from './unit.js?v=31';
 import {
-  DEFAULT_COMM_ANCHORS,
   buildDefaultFormationUnits
-} from './formation.js?v=31';
+} from './formation.js?v=39';
 
 export const SIM_MINUTES_PER_TICK = 15;
 
@@ -60,9 +67,10 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function roundToTickMinutes(minutes) {
-  const safe = Number.isFinite(minutes) ? Math.max(SIM_MINUTES_PER_TICK, minutes) : SIM_MINUTES_PER_TICK;
-  return Math.max(SIM_MINUTES_PER_TICK, Math.round(safe / SIM_MINUTES_PER_TICK) * SIM_MINUTES_PER_TICK);
+function roundToTickMinutes(minutes, tickMinutes = SIM_MINUTES_PER_TICK) {
+  const tick = Number.isFinite(tickMinutes) && tickMinutes > 0 ? tickMinutes : SIM_MINUTES_PER_TICK;
+  const safe = Number.isFinite(minutes) ? Math.max(tick, minutes) : tick;
+  return Math.max(tick, Math.round(safe / tick) * tick);
 }
 
 function formatSizeLabel(size) {
@@ -91,8 +99,21 @@ function clonePlainObject(value) {
 }
 
 export class Simulation {
-  constructor({ map = MAP, units = [], reports = [], commAnchors = [] } = {}) {
+  constructor({ map = MAP, scenario = DEFAULT_SCENARIO, units = [], reports = [], commAnchors = null, operation = null } = {}) {
     this.map = map;
+    this.scenario = clonePlainObject(scenario ?? DEFAULT_SCENARIO);
+    this.operationConfig = {
+      ...getScenarioOperationConfig(this.scenario),
+      ...(operation && typeof operation === 'object' ? operation : {})
+    };
+    this.simMinutesPerTick = Number.isFinite(this.operationConfig.simMinutesPerTick)
+      ? Math.max(1, Math.round(this.operationConfig.simMinutesPerTick))
+      : SIM_MINUTES_PER_TICK;
+    this._commRange = Number.isFinite(this.operationConfig.commRange)
+      ? Math.max(1, Math.round(this.operationConfig.commRange))
+      : 2;
+    this.objectives = getScenarioObjectives(this.scenario, this.map);
+    this._scenarioEnemyBySector = getScenarioEnemySummariesForMap(this.scenario, this.map);
     this.sectors = new Map();
     this.units = new Map();
     this.reports = [];
@@ -101,11 +122,16 @@ export class Simulation {
     this.time = 0;
     this.paused = false;
     this.speed = 1;
-    this.historyLimit = 250;
+    this.historyLimit = Number.isFinite(this.operationConfig.historyLimit)
+      ? Math.max(10, Math.round(this.operationConfig.historyLimit))
+      : 250;
     this.defaultSupplySectorIds = [];
     // Communication anchors (always-on transmitters): HQ, forward command, etc.
     // Used by the comm system to determine which units are connected.
-    this.commAnchors = Array.isArray(commAnchors) ? commAnchors.map((a) => ({ ...a })) : [];
+    const configuredAnchors = Array.isArray(commAnchors)
+      ? commAnchors
+      : getScenarioCommAnchors(this.scenario, this.map);
+    this.commAnchors = Array.isArray(configuredAnchors) ? configuredAnchors.map((a) => ({ ...a })) : [];
 
     this._buildSectors();
     this._ingestUnits(units);
@@ -121,11 +147,12 @@ export class Simulation {
     this.sectors.clear();
     const rawSectors = Array.isArray(this.map?.sectors) ? this.map.sectors : [];
     for (const raw of rawSectors) {
+      const scenarioEnemy = this._scenarioEnemyBySector.get(raw.id);
       const sector = raw instanceof Sector
         ? raw.clone()
         : new Sector({
           ...raw,
-          hiddenEnemySummary: raw.hiddenEnemySummary ?? raw.enemySummary ?? null,
+          hiddenEnemySummary: scenarioEnemy ?? raw.hiddenEnemySummary ?? raw.enemySummary ?? null,
           enemySummary: null,
           alert: false,
           alertLabel: null,
@@ -291,7 +318,14 @@ export class Simulation {
       reports: this.listReports().map((r) => r.toJSON()),
       operations: this.listOperations().map((op) => clonePlainObject(op)),
       commAnchors: this.commAnchors.map((a) => ({ ...a })),
-      supplySectorIds: [...this.defaultSupplySectorIds]
+      supplySectorIds: [...this.defaultSupplySectorIds],
+      objectives: clonePlainObject(this.objectives),
+      scenario: {
+        id: this.scenario?.id ?? null,
+        stage: this.scenario?.stage ?? null,
+        title: this.scenario?.title ?? null
+      },
+      simMinutesPerTick: this.simMinutesPerTick
     };
   }
 
@@ -373,7 +407,7 @@ export class Simulation {
   _tickUnitCohesion(unit) {
     if (!unit || !unit.isAlive) return;
     const activity = this._unitActivity(unit);
-    unit.recoverCohesion(SIM_MINUTES_PER_TICK, {
+    unit.recoverCohesion(this.simMinutesPerTick, {
       activity,
       atSupply: this._isSupplySector(unit.sectorId)
     });
@@ -388,7 +422,7 @@ export class Simulation {
       bonus: 0.24,
       penalty: 0.16
     });
-    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction) * cohesionDelay * leaderFactor * capabilityFactor));
+    return roundToTickMinutes(Math.max(2 * MINUTES_PER_HOUR, baseMinutes * (1 - reduction) * cohesionDelay * leaderFactor * capabilityFactor), this.simMinutesPerTick);
   }
 
   _reportIntervalMinutes(unit) {
@@ -403,7 +437,7 @@ export class Simulation {
       bonus: 0.22,
       penalty: 0.16
     });
-    return roundToTickMinutes(base * cohesionDelay * leaderFactor * capabilityFactor);
+    return roundToTickMinutes(base * cohesionDelay * leaderFactor * capabilityFactor, this.simMinutesPerTick);
   }
 
   _movementMinutesToEnter(sector, unit) {
@@ -415,7 +449,7 @@ export class Simulation {
       bonus: 0.2,
       penalty: 0.18
     });
-    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor * capabilityFactor));
+    return roundToTickMinutes(Math.max(30, baseMinutes * moveFactor * cohesionDelay * leaderFactor * capabilityFactor), this.simMinutesPerTick);
   }
 
   _pathToTarget(fromId, targetId) {
@@ -741,7 +775,7 @@ export class Simulation {
     if (!nextSector) return false;
 
     const moveCost = this._movementMinutesToEnter(nextSector, unit);
-    unit.moveBuffer += SIM_MINUTES_PER_TICK;
+    unit.moveBuffer += this.simMinutesPerTick;
 
     if (unit.moveBuffer < moveCost) {
       return false;
@@ -820,7 +854,7 @@ export class Simulation {
             : 'idle';
     if (activity === 'idle') return;
 
-    unit.applyFoodDrain(this._foodDrainForMinutes(unit, sector, activity, SIM_MINUTES_PER_TICK));
+    unit.applyFoodDrain(this._foodDrainForMinutes(unit, sector, activity, this.simMinutesPerTick));
 
     if (unit.food <= 0) {
       unit.setStatus(UNIT_STATUS.EXHAUSTED);
@@ -920,7 +954,7 @@ export class Simulation {
     const state = unit.meta.reconState;
 
     if (!state.setupDone) {
-      state.setupLeft = Math.max(0, state.setupLeft - SIM_MINUTES_PER_TICK);
+      state.setupLeft = Math.max(0, state.setupLeft - this.simMinutesPerTick);
       const progress = Math.round((1 - state.setupLeft / state.setupTotal) * 99);
       sector.setReconProgress(progress);
       sector.setLastKnownTurn(this.turn);
@@ -936,8 +970,8 @@ export class Simulation {
         this._generateReconReport(unit, sector);
       }
     } else {
-      state.onStationMinutes = (state.onStationMinutes ?? 0) + SIM_MINUTES_PER_TICK;
-      state.minutesSinceReport = (state.minutesSinceReport ?? 0) + SIM_MINUTES_PER_TICK;
+      state.onStationMinutes = (state.onStationMinutes ?? 0) + this.simMinutesPerTick;
+      state.minutesSinceReport = (state.minutesSinceReport ?? 0) + this.simMinutesPerTick;
       if (state.minutesSinceReport >= this._reportIntervalMinutes(unit)) {
         state.minutesSinceReport = 0;
         this._generateReconReport(unit, sector);
@@ -1239,7 +1273,7 @@ export class Simulation {
     if (this.paused) return this.getState();
 
     this.turn += 1;
-    this.time += SIM_MINUTES_PER_TICK;
+    this.time += this.simMinutesPerTick;
 
     // Re-derive supply nodes occasionally in case the UI or future systems alter control.
     this._deriveSupplyNodes();
@@ -1472,10 +1506,14 @@ export function createSimulation(options = {}) {
 }
 
 export function createDefaultSimulation() {
+  const map = MAP;
+  const scenario = DEFAULT_SCENARIO;
+  const startSectorId = getScenarioStartSectorId(scenario, map) ?? map.startSectorId;
   return new Simulation({
-    map: MAP,
-    units: buildDefaultFormationUnits(),
+    map,
+    scenario,
+    units: buildDefaultFormationUnits({ startSectorId }),
     reports: [],
-    commAnchors: DEFAULT_COMM_ANCHORS
+    commAnchors: getScenarioCommAnchors(scenario, map)
   });
 }

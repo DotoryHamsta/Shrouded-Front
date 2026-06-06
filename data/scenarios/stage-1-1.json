@@ -1,0 +1,139 @@
+{
+  "id": "stage-1-1",
+  "stage": "1-1",
+  "title": "Stage 1-1: Northern Valley Recon",
+  "summary": "정찰 작전의 기본 루프를 검증하는 첫 작전.",
+  "defaultMapId": "northern-field-operations-v2",
+  "operation": {
+    "startMinutes": 360,
+    "simMinutesPerTick": 15,
+    "tickMs": 1000,
+    "speedOptions": [0.5, 1, 2, 4],
+    "reconDurationPresets": [240, 480, 1440],
+    "historyLimit": 250,
+    "commRange": 2
+  },
+  "formation": {
+    "personnelLimit": 40,
+    "defaultPool": {
+      "leader": 3,
+      "rifleman": 22,
+      "scout": 6,
+      "signal": 3,
+      "medic": 3,
+      "observer": 2,
+      "weapons": 1
+    }
+  },
+  "maps": {
+    "northern-field-operations-v2": {
+      "mission": {
+        "title": "북쪽 계곡 접근로 정찰",
+        "briefing": "가용 병력 안에서 작전 단위를 편성하고, 중앙 교전 예상 지대와 북동 고지의 적 배치를 확인한다."
+      },
+      "startSectorId": "D5",
+      "commAnchors": [
+        { "sectorId": "D5", "label": "HQ" },
+        { "sectorId": "D3", "label": "야전사령부" }
+      ],
+      "objectives": [
+        {
+          "id": "recon-c3",
+          "type": "recon_sector",
+          "targetSectorId": "C3",
+          "title": "Plain C 적 주력 식별",
+          "requiredReportClass": "B",
+          "required": true
+        },
+        {
+          "id": "recon-a2",
+          "type": "recon_sector",
+          "targetSectorId": "A2",
+          "title": "Ridge B 관측 접촉 확인",
+          "requiredReportClass": "C",
+          "required": false
+        },
+        {
+          "id": "return-to-supply",
+          "type": "unit_return",
+          "targetSectorId": "D5",
+          "title": "최소 1개 작전 단위 보급 복귀",
+          "required": true
+        }
+      ],
+      "enemyForces": [
+        { "id": "enemy-a2-screen", "sectorId": "A2", "class": "C", "size": 12, "type": "recon" },
+        { "id": "enemy-c3-main", "sectorId": "C3", "class": "B", "size": 40, "type": "infantry" },
+        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 18, "type": "artillery" }
+      ]
+    },
+    "southern-river-crossing-v1": {
+      "mission": {
+        "title": "남부 교량 접근로 확보",
+        "briefing": "강변 교량과 도하 지점을 살피고, 노출된 교두보에 맞는 작전 단위를 편성한다."
+      },
+      "startSectorId": "D5",
+      "commAnchors": [
+        { "sectorId": "D5", "label": "HQ" },
+        { "sectorId": "D3", "label": "야전사령부" }
+      ],
+      "objectives": [
+        {
+          "id": "recon-c2",
+          "type": "recon_sector",
+          "targetSectorId": "C2",
+          "title": "Main Bridgehead 적 방어 확인",
+          "requiredReportClass": "B",
+          "required": true
+        },
+        {
+          "id": "recon-e5",
+          "type": "recon_sector",
+          "targetSectorId": "E5",
+          "title": "Depot Road 화력 관측 확인",
+          "requiredReportClass": "C",
+          "required": false
+        }
+      ],
+      "enemyForces": [
+        { "id": "enemy-a2-screen", "sectorId": "A2", "class": "C", "size": 10, "type": "recon" },
+        { "id": "enemy-c2-bridge", "sectorId": "C2", "class": "B", "size": 34, "type": "infantry" },
+        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 14, "type": "artillery" }
+      ]
+    },
+    "eastern-ridge-line-v1": {
+      "mission": {
+        "title": "동부 능선 관측선 구축",
+        "briefing": "능선 관측로와 숲 우회로를 동시에 관리할 수 있게 작전 단위를 나눈다."
+      },
+      "startSectorId": "D5",
+      "commAnchors": [
+        { "sectorId": "D5", "label": "HQ" },
+        { "sectorId": "D3", "label": "야전사령부" }
+      ],
+      "objectives": [
+        {
+          "id": "recon-c3",
+          "type": "recon_sector",
+          "targetSectorId": "C3",
+          "title": "East Road Cut 적 이동 확인",
+          "requiredReportClass": "B",
+          "required": true
+        },
+        {
+          "id": "recon-a2",
+          "type": "recon_sector",
+          "targetSectorId": "A2",
+          "title": "Iron Ridge 방어 규모 확인",
+          "requiredReportClass": "C",
+          "required": false
+        }
+      ],
+      "enemyForces": [
+        { "id": "enemy-a2-ridge", "sectorId": "A2", "class": "B", "size": 22, "type": "infantry" },
+        { "id": "enemy-c3-road", "sectorId": "C3", "class": "B", "size": 32, "type": "infantry" },
+        { "id": "enemy-e5-guns", "sectorId": "E5", "class": "A", "size": 16, "type": "artillery" }
+      ]
+    }
+  }
+}

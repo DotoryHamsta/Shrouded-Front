@@ -4,7 +4,7 @@
 // This module wraps raw map data into a game-friendly object.
 // It does not touch the DOM.
 
-import { MAP, getActiveMap, getSectorById } from '../data/map.js?v=38';
+import { MAP, getActiveMap, getSectorById } from '../data/map.js?v=39';
 
 function clonePoint(value, fallback = { x: 0, y: 0 }) {
   if (Array.isArray(value) && value.length >= 2) {

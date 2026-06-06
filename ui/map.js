@@ -2,8 +2,8 @@
 // SVG map renderer for Shrouded Front.
 // Renders the full sector map from data/map.js.
 
-import { getActiveMap, getSectorById } from '../data/map.js?v=38';
-import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=36';
+import { getActiveMap, getSectorById } from '../data/map.js?v=39';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=39';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const DEFAULT_VIEWBOX = { width: 1200, height: 820 };

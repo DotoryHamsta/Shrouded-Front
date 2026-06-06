@@ -397,7 +397,7 @@ export function buildUnitsFromDrafts(drafts = [], pool = DEFAULT_POOL, { startSe
   });
 }
 
-export function buildDefaultFormationUnits() {
+export function buildDefaultFormationUnits(options = {}) {
   const pool = normalizePool(DEFAULT_POOL);
-  return buildUnitsFromDrafts(normalizeDrafts([], pool), pool);
+  return buildUnitsFromDrafts(normalizeDrafts([], pool), pool, options);
 }

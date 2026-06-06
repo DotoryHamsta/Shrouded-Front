@@ -1,21 +1,27 @@
-import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=38';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=39';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
-import { DEFAULT_MAP_ID, codeForSector, getActiveMap, getMapById, setActiveMap } from './data/map.js?v=38';
+import { DEFAULT_MAP_ID, codeForSector, getActiveMap, getMapById, setActiveMap } from './data/map.js?v=39';
+import {
+  DEFAULT_SCENARIO,
+  getScenarioCommAnchors,
+  getScenarioOperationConfig
+} from './data/scenarios/index.js?v=39';
 import {
   CAPABILITY_KEYS,
   CAPABILITY_LABELS,
   DEFAULT_COMM_ANCHORS,
   capabilityBand
-} from './game/formation.js?v=31';
-import { createMapView } from './ui/map.js?v=38';
-import { createDetailPanel } from './ui/details.js?v=36';
-import { createOperationsBoard } from './ui/operations.js?v=36';
-import { createUnitRoster } from './ui/roster.js?v=36';
-import { createFormationSetup } from './ui/setup.js?v=38';
+} from './game/formation.js?v=39';
+import { createMapView } from './ui/map.js?v=39';
+import { createDetailPanel } from './ui/details.js?v=39';
+import { createOperationsBoard } from './ui/operations.js?v=39';
+import { createUnitRoster } from './ui/roster.js?v=39';
+import { createFormationSetup } from './ui/setup.js?v=39';
 
-const TICK_MS = 1000;
-const SPEEDS = [0.5, 1, 2, 4];
-const RECON_DURATION_PRESETS = [4 * 60, 8 * 60, 24 * 60];
+const OPERATION_CONFIG = getScenarioOperationConfig(DEFAULT_SCENARIO);
+const TICK_MS = OPERATION_CONFIG.tickMs ?? 1000;
+const SPEEDS = OPERATION_CONFIG.speedOptions ?? [0.5, 1, 2, 4];
+const RECON_DURATION_PRESETS = OPERATION_CONFIG.reconDurationPresets ?? [4 * 60, 8 * 60, 24 * 60];
 
 const root = document.getElementById('mapMount');
 
@@ -213,6 +219,7 @@ const mapView = createMapView({
 
 const setupFlow = createFormationSetup({
   mount: setupScreen,
+  scenario: DEFAULT_SCENARIO,
   onStart: startOperation
 });
 
@@ -221,9 +228,10 @@ function startOperation(payload = {}) {
   selectedMap = setActiveMap(payload.mapId ?? DEFAULT_MAP_ID) ?? getMapById(DEFAULT_MAP_ID);
   simulation = createSimulation({
     map: selectedMap,
+    scenario: DEFAULT_SCENARIO,
     units,
     reports: [],
-    commAnchors: selectedMap.commAnchors ?? DEFAULT_COMM_ANCHORS
+    commAnchors: getScenarioCommAnchors(DEFAULT_SCENARIO, selectedMap) ?? selectedMap.commAnchors ?? DEFAULT_COMM_ANCHORS
   });
   state = simulation.getState();
   selectedSectorId = state.units[0]?.sectorId ?? state.sectors[0]?.id ?? null;

@@ -10,8 +10,8 @@
 
 import { formatRations, formatTime } from '../game/report.js?v=28';
 import { unitLabel } from '../game/unit.js?v=31';
-import { CAPABILITY_LABELS } from '../game/formation.js?v=31';
-import { codeForSector } from '../data/map.js?v=38';
+import { CAPABILITY_LABELS } from '../game/formation.js?v=39';
+import { codeForSector } from '../data/map.js?v=39';
 
 function escapeHtml(value) {
   return String(value ?? '')

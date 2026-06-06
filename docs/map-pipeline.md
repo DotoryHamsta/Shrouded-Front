@@ -17,7 +17,6 @@ Maps are split into a visual background and gameplay data. The background should
 Every map object should include:
 
 - `id`, `name`, `description`, `summary`
-- `mission.title`, `mission.briefing`
 - `startSectorId`
 - `commAnchors`
 - `viewBox`
@@ -37,14 +36,31 @@ Every sector should include:
 - `labelPoint`
 - `polygon`
 - `neighbors`
-- optional `elevation`, `features`, `landmarks`, `notes`, `hiddenEnemySummary`
+- optional `elevation`, `features`, `landmarks`, `notes`
+
+Map content lives in `data/maps/`, with one module per map and `data/map.js` acting as the registry/lookup facade.
+
+## Scenario Data Rules
+
+Stage and simulation setup data lives in `data/scenarios/*.json`.
+
+Use scenario JSON for:
+
+- operation timing (`simMinutesPerTick`, speed options, recon duration presets)
+- map-specific mission title/briefing
+- start sector and comm anchors when they differ by stage
+- mission objectives
+- hidden enemy setup (`enemyForces`)
+
+Keep enemy placement out of map modules. That lets the same terrain map support different stages.
 
 ## Sector Editing Checklist
 
 - Keep `labelPoint` inside the sector polygon.
 - Keep `neighbors` valid and preferably bidirectional.
 - Update `startSectorId` and `commAnchors` if `D5` or `D3` changes.
-- Move any hidden enemy or friendly setup data when splitting or merging sectors.
+- Move any scenario enemy/objective references when splitting or merging sectors.
+- Run `npm run validate` after map or scenario changes.
 - After changes, verify that all neighbor IDs exist and the app can start a simulation for the map.
 
 ## Prompt Template

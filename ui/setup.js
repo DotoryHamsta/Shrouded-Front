@@ -22,9 +22,14 @@ import {
   normalizePool,
   poolTotal,
   roleLabel
-} from '../game/formation.js?v=31';
+} from '../game/formation.js?v=39';
 import { MISSION_ROLE_LABELS } from '../game/unit.js?v=31';
-import { DEFAULT_MAP_ID, codeForSector, getMapById, listMaps } from '../data/map.js?v=38';
+import { DEFAULT_MAP_ID, codeForSector, getMapById, listMaps } from '../data/map.js?v=39';
+import {
+  DEFAULT_SCENARIO,
+  getScenarioMapConfig,
+  getScenarioStartSectorId
+} from '../data/scenarios/index.js?v=39';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -77,14 +82,15 @@ function capabilityBars(capabilities = {}) {
 }
 
 export class FormationSetup {
-  constructor({ mount, onStart = () => {} } = {}) {
+  constructor({ mount, scenario = DEFAULT_SCENARIO, onStart = () => {} } = {}) {
     if (!mount) throw new Error('FormationSetup requires a mount element.');
 
     this.mount = mount;
+    this.scenario = scenario;
     this.onStart = onStart;
     this.state = {
       step: 'pool',
-      mapId: DEFAULT_MAP_ID,
+      mapId: scenario?.defaultMapId ?? DEFAULT_MAP_ID,
       pool: normalizePool(DEFAULT_POOL),
       drafts: normalizeDrafts([], DEFAULT_POOL)
     };
@@ -179,10 +185,11 @@ export class FormationSetup {
     this.state.drafts = normalizeDrafts(this.state.drafts, this.state.pool);
     if (!this.canStart()) return;
     const map = getMapById(this.state.mapId) ?? getMapById(DEFAULT_MAP_ID);
+    const startSectorId = getScenarioStartSectorId(this.scenario, map) ?? map.startSectorId ?? 'D5';
     this.onStart({
       mapId: map.id,
       units: buildUnitsFromDrafts(this.state.drafts, this.state.pool, {
-        startSectorId: map.startSectorId ?? 'D5'
+        startSectorId
       })
     });
   }
@@ -200,7 +207,10 @@ export class FormationSetup {
     const leaderSlots = this.state.pool.leader;
     const step = this.state.step;
     const selectedMap = getMapById(this.state.mapId) ?? getMapById(DEFAULT_MAP_ID);
-    const startLabel = codeForSector(selectedMap.startSectorId, selectedMap);
+    const selectedMapConfig = getScenarioMapConfig(this.scenario, selectedMap);
+    const startSectorId = selectedMapConfig.startSectorId ?? selectedMap.startSectorId;
+    const mission = selectedMapConfig.mission ?? selectedMap.mission ?? {};
+    const startLabel = codeForSector(startSectorId, selectedMap);
 
     this.mount.innerHTML = `
       <div class="sf-setup-shell">
@@ -218,8 +228,8 @@ export class FormationSetup {
         <main class="sf-setup-main">
           <section class="sf-setup-brief">
             <div class="sf-brief-kicker">Mission</div>
-            <h2>${escapeHtml(selectedMap.mission?.title ?? selectedMap.name)}</h2>
-            <p>${escapeHtml(selectedMap.mission?.briefing ?? selectedMap.summary ?? selectedMap.description)}</p>
+            <h2>${escapeHtml(mission.title ?? selectedMap.name)}</h2>
+            <p>${escapeHtml(mission.briefing ?? selectedMap.summary ?? selectedMap.description)}</p>
             <div class="sf-brief-metrics">
               <span>한도 ${TOTAL_PERSONNEL_LIMIT}명</span>
               <span>리더 ${leaderSlots}명</span>
@@ -247,7 +257,8 @@ export class FormationSetup {
         <div class="sf-map-picker-list">
           ${listMaps().map((map) => {
             const active = map.id === selectedMap.id;
-            const start = codeForSector(map.startSectorId, getMapById(map.id));
+            const mapConfig = getScenarioMapConfig(this.scenario, map);
+            const start = codeForSector(mapConfig.startSectorId ?? map.startSectorId, getMapById(map.id));
             return `
               <button
                 type="button"
