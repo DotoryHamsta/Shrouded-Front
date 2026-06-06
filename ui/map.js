@@ -39,6 +39,51 @@ function centerOf(sector) {
   };
 }
 
+function averagePoint(points = []) {
+  if (points.length === 0) return { x: 0, y: 0 };
+
+  const sum = points.reduce((acc, [x, y]) => {
+    acc.x += x;
+    acc.y += y;
+    return acc;
+  }, { x: 0, y: 0 });
+
+  return {
+    x: sum.x / points.length,
+    y: sum.y / points.length
+  };
+}
+
+function polygonCentroid(points = []) {
+  if (points.length < 3) return averagePoint(points);
+
+  let twiceArea = 0;
+  let x = 0;
+  let y = 0;
+
+  for (let i = 0; i < points.length; i += 1) {
+    const [x0, y0] = points[i];
+    const [x1, y1] = points[(i + 1) % points.length];
+    const cross = (x0 * y1) - (x1 * y0);
+    twiceArea += cross;
+    x += (x0 + x1) * cross;
+    y += (y0 + y1) * cross;
+  }
+
+  if (Math.abs(twiceArea) < 0.001) return averagePoint(points);
+
+  return {
+    x: x / (3 * twiceArea),
+    y: y / (3 * twiceArea)
+  };
+}
+
+function labelPointOf(sector) {
+  const points = Array.isArray(sector?.polygon) ? sector.polygon : [];
+  if (points.length > 0) return polygonCentroid(points);
+  return centerOf(sector);
+}
+
 function getStatusText(sector) {
   if (sector.alert || sector.alertLabel || sector.enemySummary) return '보고 있음';
   if (sector.reconProgress >= 80) return '보고 확보';
@@ -259,13 +304,15 @@ export class SectorMapView {
   _buildOverlays(labelLayer, pinLayer) {
     for (const rawSector of MAP.sectors) {
       const sector = getSectorById(rawSector.id) || rawSector;
-      const center = centerOf(sector);
+      const labelPoint = labelPointOf(sector);
       const group = createSvgEl('g');
       group.dataset.sectorId = sector.id;
+      group.setAttribute('pointer-events', 'none');
 
       const code = createSvgEl('text');
-      code.setAttribute('x', `${center.x - 56}`);
-      code.setAttribute('y', `${center.y - 8}`);
+      code.setAttribute('x', `${labelPoint.x}`);
+      code.setAttribute('y', `${labelPoint.y - 8}`);
+      code.setAttribute('text-anchor', 'middle');
       code.setAttribute('fill', 'rgba(240,245,250,0.94)');
       code.setAttribute('font-size', '18');
       code.setAttribute('font-weight', '800');
@@ -273,16 +320,18 @@ export class SectorMapView {
       code.textContent = escapeText(sector.code);
 
       const status = createSvgEl('text');
-      status.setAttribute('x', `${center.x - 56}`);
-      status.setAttribute('y', `${center.y + 12}`);
+      status.setAttribute('x', `${labelPoint.x}`);
+      status.setAttribute('y', `${labelPoint.y + 12}`);
+      status.setAttribute('text-anchor', 'middle');
       status.setAttribute('fill', 'rgba(216,224,235,0.75)');
       status.setAttribute('font-size', '12');
       status.setAttribute('pointer-events', 'none');
       status.textContent = getStatusText(sector);
 
       const units = createSvgEl('text');
-      units.setAttribute('x', `${center.x - 56}`);
-      units.setAttribute('y', `${center.y + 29}`);
+      units.setAttribute('x', `${labelPoint.x}`);
+      units.setAttribute('y', `${labelPoint.y + 29}`);
+      units.setAttribute('text-anchor', 'middle');
       units.setAttribute('fill', 'rgba(166,180,199,0.74)');
       units.setAttribute('font-size', '11');
       units.setAttribute('pointer-events', 'none');
@@ -294,8 +343,8 @@ export class SectorMapView {
 
       const pin = createSvgEl('text');
       pin.dataset.sectorId = sector.id;
-      pin.setAttribute('x', `${center.x + 18}`);
-      pin.setAttribute('y', `${center.y - 16}`);
+      pin.setAttribute('x', `${labelPoint.x + 28}`);
+      pin.setAttribute('y', `${labelPoint.y - 18}`);
       pin.setAttribute('fill', '#ff5e5e');
       pin.setAttribute('font-size', '20');
       pin.setAttribute('font-weight', '800');
@@ -317,7 +366,7 @@ export class SectorMapView {
       const polygon = this.sectorElements.get(sector.id);
       const labelGroup = this.labelElements.get(sector.id);
       const pin = this.pinElements.get(sector.id);
-      const center = centerOf(sector);
+      const labelPoint = labelPointOf(sector);
       const alertState = Boolean(sector.alert || sector.alertLabel || sector.enemySummary);
       const selected = this.selectedSectorId === sector.id;
       const hovered = this.hoveredSectorId === sector.id;
@@ -337,8 +386,8 @@ export class SectorMapView {
       }
 
       if (pin) {
-        pin.setAttribute('x', `${center.x + 18}`);
-        pin.setAttribute('y', `${center.y - 16}`);
+        pin.setAttribute('x', `${labelPoint.x + 28}`);
+        pin.setAttribute('y', `${labelPoint.y - 18}`);
         pin.textContent = alertState ? '🔴' : '';
       }
     }

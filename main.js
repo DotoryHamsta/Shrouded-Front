@@ -1,6 +1,6 @@
 import { createDefaultSimulation } from './game/simulation.js?v=27';
 import { formatTime } from './game/report.js?v=27';
-import { createMapView } from './ui/map.js?v=27';
+import { createMapView } from './ui/map.js?v=28';
 import { createDetailPanel } from './ui/details.js?v=27';
 import { createOperationsBoard } from './ui/operations.js?v=27';
 import { createUnitRoster } from './ui/roster.js?v=27';
