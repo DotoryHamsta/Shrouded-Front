@@ -1,680 +1,449 @@
 // data/map.js
-// Shrouded Front - first map data model
-//
-// This file defines the tactical sectors used by the game logic.
-// The SVG map can read from this same structure later.
+// Shrouded Front - tactical map data model.
+
+const TERRAIN_LABELS = {
+  ridge: '고지대',
+  valley: '계곡',
+  plain: '평야',
+  forest: '숲'
+};
+
+const TERRAIN_FILLS = {
+  ridge: 'url(#ridgeGrad)',
+  valley: 'url(#valleyGrad)',
+  plain: 'url(#plainGrad)',
+  forest: 'url(#forestGrad)'
+};
+
+function point([x, y]) {
+  return { x, y };
+}
+
+function sector({
+  id,
+  code,
+  terrain,
+  role,
+  center,
+  labelPoint = center,
+  polygon,
+  neighbors,
+  regionLabel = '',
+  features = [],
+  landmarks = [],
+  notes = '',
+  elevation = null,
+  hiddenEnemySummary = null,
+  friendlySummary = null,
+  owner = 'neutral',
+  reportSummary = '미탐색'
+}) {
+  return {
+    id,
+    code,
+    terrain,
+    terrainLabel: TERRAIN_LABELS[terrain] ?? terrain,
+    regionLabel,
+    features,
+    landmarks,
+    role,
+    notes,
+    elevation,
+    svgFill: TERRAIN_FILLS[terrain] ?? TERRAIN_FILLS.plain,
+    alert: false,
+    alertLabel: null,
+    visibilityHint: notes,
+    neighbors,
+    center: point(center),
+    labelPoint: point(labelPoint),
+    polygon,
+    control: 'unseen',
+    friendlySummary,
+    enemySummary: null,
+    hiddenEnemySummary,
+    reportSummary,
+    occupancy: [],
+    owner
+  };
+}
 
 export const MAP = {
-  id: 'alpha-theater-01',
-  name: 'Northern Theater',
+  id: 'northern-field-operations-v2',
+  name: 'Northern Field Operations Map',
   description:
-    'A compact tactical theater with an upper ridge line, a central valley river, and a forested southeast approach.',
+    'A raster-backed tactical theater with asymmetric ridge lines, forests, valleys, a central river corridor, and road crossings.',
+  viewBox: {
+    width: 1200,
+    height: 820
+  },
+  background: {
+    href: './assets/northern-field-operations-v2.png',
+    type: 'raster',
+    sourceSize: { width: 1515, height: 1038 },
+    includes: ['terrain', 'river', 'roads', 'forest', 'ridge'],
+    excludes: ['sector labels', 'grid labels', 'legend text', 'sector boundary dotted line']
+  },
+  grid: {
+    columns: ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'],
+    rows: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+  },
+  layers: {
+    rivers: [
+      {
+        id: 'central-river',
+        d: 'M560 145 C610 230 580 320 610 415 C645 530 555 610 575 820',
+        width: 14,
+        crossings: [
+          { id: 'north-ford', at: [590, 365], sectors: ['B3', 'C2'] },
+          { id: 'center-bridge', at: [625, 500], sectors: ['C2', 'D3'] },
+          { id: 'south-bridge', at: [575, 700], sectors: ['E1', 'E4'] }
+        ]
+      }
+    ],
+    roads: [
+      {
+        id: 'west-east-service-road',
+        d: 'M110 505 C310 460 470 520 650 505 C820 490 950 555 1130 500',
+        type: 'secondary',
+        width: 9
+      },
+      {
+        id: 'central-road',
+        d: 'M615 820 C590 705 625 590 620 455 C615 330 690 245 740 160',
+        type: 'main',
+        width: 11
+      }
+    ],
+    towns: [],
+    bridgeCrossingPoints: [
+      { id: 'north-ford', at: [590, 365], sectors: ['B3', 'C2'] },
+      { id: 'center-bridge', at: [625, 500], sectors: ['C2', 'D3'] },
+      { id: 'south-bridge', at: [575, 700], sectors: ['E1', 'E4'] }
+    ]
+  },
   sectors: [
-    {
+    sector({
       id: 'A1',
-      code: 'Valley A',
-      terrain: 'valley',
-      terrainLabel: '계곡',
-      regionLabel: 'Northwest Valley',
-      features: ['river_source', 'narrow_pass', 'high_cover'],
-      landmarks: ['River Source', 'North Pass'],
-      role: 'approach',
-      notes: '좌상단 계곡. 강 상류가 시작되고, 협곡형 접근로가 형성된다.',
-      svgFill: 'url(#valleyGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Recon is slow here; the valley shape blocks wide observation.',
-      neighbors: ['A2', 'B1', 'B2'],
-      center: { x: 125, y: 110 },
-      polygon: [
-        [0, 0],
-        [270, 0],
-        [325, 110],
-        [255, 190],
-        [160, 225],
-        [40, 170],
-        [0, 80]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'A2',
       code: 'Ridge A',
       terrain: 'ridge',
-      terrainLabel: '고지대',
-      regionLabel: 'Northern Ridge',
-      features: ['observation_point', 'steep_slope', 'artillery_spotting'],
-      landmarks: ['Hill 203', 'Observation Post'],
       role: 'observation',
-      notes: '상단 중앙 능선. 중앙 평야와 서쪽 계곡을 관측하기 좋다.',
-      svgFill: 'url(#ridgeGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'High ground, excellent for observation and artillery spotting.',
-      neighbors: ['A1', 'A3', 'B3', 'B4'],
-      center: { x: 445, y: 85 },
-      polygon: [
-        [270, 0],
-        [660, 0],
-        [620, 120],
-        [480, 170],
-        [325, 110]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'A3',
+      elevation: { min: 520, max: 680 },
+      regionLabel: 'Northwest Ridge',
+      features: ['high_ground', 'steep_slope', 'long_sightline'],
+      landmarks: ['West Crest'],
+      notes: '북서부 고지. 서쪽 숲과 중앙 접근로를 내려다볼 수 있다.',
+      center: [331, 84],
+      polygon: [[80, 0], [520, 0], [545, 105], [475, 165], [340, 170], [220, 145], [95, 95]],
+      neighbors: ['A2', 'B1', 'B2', 'B3']
+    }),
+    sector({
+      id: 'A2',
       code: 'Ridge B',
       terrain: 'ridge',
-      terrainLabel: '고지대',
-      regionLabel: 'Northeast Ridge',
-      features: ['observation_line', 'long_view', 'defensive_height'],
-      landmarks: ['East Crest', 'Signal Point'],
       role: 'observation',
-      notes: '상단 우측 능선. 우하단 숲 접근을 감시할 수 있다.',
-      svgFill: 'url(#ridgeGrad)',
-      alert: true,
-      alertLabel: '적 정찰 흔적',
-      visibilityHint: 'Long view over the southeast forest and the central route.',
-      neighbors: ['A2', 'B5', 'B6'],
-      center: { x: 965, y: 95 },
-      polygon: [
-        [660, 0],
-        [1200, 0],
-        [1200, 155],
-        [980, 170],
-        [770, 130]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: {
-        class: 'C',
-        size: 12,
-        type: 'recon'
-      },
-      reportSummary: '적 정찰 흔적',
-      occupancy: []
-    },
-    {
+      elevation: { min: 480, max: 620 },
+      regionLabel: 'Northeast Ridge',
+      features: ['high_ground', 'road_overlook', 'signal_sightline'],
+      landmarks: ['East Crest', 'North Road'],
+      notes: '북동부 고지. 동쪽 도로와 계곡 진입부를 감시하기 좋다.',
+      center: [820, 86],
+      polygon: [[520, 0], [1160, 0], [1125, 115], [1010, 165], [850, 145], [700, 190], [545, 105]],
+      neighbors: ['A1', 'B3', 'B4', 'B5'],
+      hiddenEnemySummary: { class: 'C', size: 12, type: 'recon' }
+    }),
+
+    sector({
       id: 'B1',
-      code: 'Valley B',
-      terrain: 'valley',
-      terrainLabel: '계곡',
-      regionLabel: 'West Approach',
-      features: ['river_bend', 'low_terrain', 'ambush_route'],
-      landmarks: ['Old Track', 'River Bend'],
-      role: 'approach',
-      notes: '서측 계곡. 강이 꺾이며 진행 방향을 제한한다.',
-      svgFill: 'url(#valleyGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Narrow terrain, easy to lose contact here.',
-      neighbors: ['A1', 'B2', 'C1', 'C2'],
-      center: { x: 88, y: 315 },
-      polygon: [
-        [0, 170],
-        [160, 225],
-        [210, 330],
-        [110, 430],
-        [0, 410]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
+      code: 'West Forest Edge',
+      terrain: 'forest',
+      role: 'screen',
+      elevation: { min: 200, max: 420 },
+      regionLabel: 'Western Tree Line',
+      features: ['dense_cover', 'forest_edge', 'restricted_movement'],
+      landmarks: ['West Tree Line'],
+      notes: '서쪽 숲 가장자리. 은폐가 좋지만 이동과 관측이 느리다.',
+      center: [96, 278],
+      polygon: [[0, 120], [95, 95], [220, 145], [200, 350], [145, 430], [0, 470]],
+      neighbors: ['A1', 'B2', 'C1', 'D1']
+    }),
+    sector({
       id: 'B2',
-      code: 'Plain A',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Central West Plain',
-      features: ['open_ground', 'supply_route'],
-      landmarks: ['Dry Field'],
-      role: 'maneuver',
-      notes: '좌중앙 평야. 이동이 빠르지만 은폐가 어렵다.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Open area; good for movement, dangerous under observation.',
-      neighbors: ['A1', 'B1', 'B3', 'C2', 'C3'],
-      center: { x: 235, y: 300 },
-      polygon: [
-        [160, 225],
-        [255, 190],
-        [360, 280],
-        [310, 400],
-        [210, 330]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
+      code: 'Valley A',
+      terrain: 'valley',
+      role: 'infiltration',
+      elevation: { min: 120, max: 260 },
+      regionLabel: 'West Valley',
+      features: ['low_ground', 'streambed', 'covered_approach'],
+      landmarks: ['West Wash'],
+      notes: '서측 계곡. 좁은 접근로라 정찰과 침투에는 좋지만 포위에 취약하다.',
+      center: [296, 273],
+      polygon: [[200, 145], [340, 170], [430, 240], [400, 360], [220, 350]],
+      neighbors: ['A1', 'B1', 'B3', 'C1', 'C2']
+    }),
+    sector({
       id: 'B3',
-      code: 'Plain B',
+      code: 'North Plain B',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Central North Plain',
-      features: ['open_ground', 'crossroads'],
-      landmarks: ['Junction 7'],
       role: 'maneuver',
-      notes: '상중앙에서 능선과 평야가 맞닿는 교차 지대.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'A transit zone between ridge observation and the valley floor.',
-      neighbors: ['A2', 'B2', 'B4', 'C3', 'C4'],
-      center: { x: 385, y: 255 },
-      polygon: [
-        [255, 190],
-        [325, 110],
-        [480, 170],
-        [430, 290],
-        [360, 280]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
+      elevation: { min: 150, max: 300 },
+      regionLabel: 'North Central Plain',
+      features: ['open_ground', 'river_approach', 'broken_cover'],
+      landmarks: ['Upper River Bend'],
+      notes: '강 상류와 맞닿은 북중앙 개활지. 빠른 이동과 노출이 동시에 발생한다.',
+      center: [540, 265],
+      polygon: [[340, 170], [475, 165], [545, 105], [700, 190], [675, 350], [515, 370], [400, 360], [430, 240]],
+      neighbors: ['A1', 'A2', 'B2', 'B4', 'C2']
+    }),
+    sector({
       id: 'B4',
-      code: 'Plain C',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Central Plain',
-      features: ['open_ground', 'main_battlefield'],
-      landmarks: ['Open Ground'],
-      role: 'battleline',
-      notes: '중앙 평야. 주 교전 예상 지역.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Likely main battle area; open to long-range fire.',
-      neighbors: ['A2', 'B3', 'B5', 'C3', 'C4', 'C5'],
-      center: { x: 585, y: 250 },
-      polygon: [
-        [480, 170],
-        [620, 120],
-        [770, 130],
-        [720, 300],
-        [555, 305],
-        [430, 290]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: {
-        class: 'B',
-        size: 40,
-        type: 'infantry'
-      },
-      reportSummary: '적 보병 관측',
-      occupancy: []
-    },
-    {
-      id: 'B5',
-      code: 'Plain D',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Central East Plain',
-      features: ['open_ground', 'sightline'],
-      landmarks: ['Grazing Field'],
-      role: 'maneuver',
-      notes: '중앙 동측 평야. 고지에서 잘 보이는 개활지.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Exposed movement corridor between the ridge and the southeast forest.',
-      neighbors: ['A3', 'B4', 'B6', 'C5', 'C6'],
-      center: { x: 840, y: 245 },
-      polygon: [
-        [770, 130],
-        [980, 170],
-        [1000, 320],
-        [860, 330],
-        [720, 300]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'B6',
-      code: 'Plain E',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Far East Plain',
-      features: ['open_ground', 'forest_edge'],
-      landmarks: ['East Corridor'],
-      role: 'approach',
-      notes: '우측 평야. 숲으로 들어가기 전 열린 접근로.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Exposed border near the southeastern woodland.',
-      neighbors: ['A3', 'B5', 'C6', 'C7'],
-      center: { x: 1090, y: 245 },
-      polygon: [
-        [980, 170],
-        [1200, 155],
-        [1200, 350],
-        [1000, 320]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C1',
       code: 'Valley C',
       terrain: 'valley',
-      terrainLabel: '계곡',
-      regionLabel: 'Southwest Valley',
-      features: ['river_turn', 'low_visibility', 'cover'],
-      landmarks: ['Low Channel'],
-      role: 'approach',
-      notes: '좌하단 계곡. 하류 흐름으로 이어지는 저지대.',
-      svgFill: 'url(#valleyGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Hard to observe from the ridge; perfect for concealment.',
-      neighbors: ['B1', 'C2', 'D1'],
-      center: { x: 65, y: 545 },
-      polygon: [
-        [0, 410],
-        [110, 430],
-        [180, 560],
-        [50, 660],
-        [0, 640]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
+      role: 'infiltration',
+      elevation: { min: 110, max: 240 },
+      regionLabel: 'East Valley',
+      features: ['low_ground', 'ravine', 'side_stream'],
+      landmarks: ['East Wash'],
+      notes: '동측 계곡. 숲과 고지 사이로 우회하기 좋은 저지대다.',
+      center: [838, 266],
+      polygon: [[700, 190], [850, 145], [1010, 165], [1000, 355], [830, 375], [675, 350]],
+      neighbors: ['A2', 'B3', 'B5', 'C2', 'C3']
+    }),
+    sector({
+      id: 'B5',
+      code: 'East Forest Edge',
+      terrain: 'forest',
+      role: 'screen',
+      elevation: { min: 190, max: 410 },
+      regionLabel: 'Eastern Tree Line',
+      features: ['dense_cover', 'forest_edge', 'side_route'],
+      landmarks: ['East Tree Line'],
+      notes: '동쪽 숲 가장자리. 측면 이동을 숨기기 좋지만 통신과 보급이 불안정하다.',
+      center: [1112, 286],
+      polygon: [[1010, 165], [1160, 95], [1200, 130], [1200, 520], [1040, 455], [1000, 355]],
+      neighbors: ['A2', 'B4', 'C3', 'D5']
+    }),
+
+    sector({
+      id: 'C1',
+      code: 'West Forest Line',
+      terrain: 'forest',
+      role: 'concealment',
+      regionLabel: 'West Inner Woods',
+      features: ['concealment', 'forest_track', 'ambush_ground'],
+      landmarks: ['Old Forest Track'],
+      notes: '서중앙 숲 지대. 아군 소규모 작전 단위가 매복하거나 재편성하기 좋다.',
+      center: [284, 425],
+      polygon: [[145, 430], [220, 350], [400, 360], [430, 480], [235, 500]],
+      neighbors: ['B1', 'B2', 'C2', 'D1', 'D2']
+    }),
+    sector({
       id: 'C2',
+      code: 'Plain B',
+      terrain: 'plain',
+      role: 'battleline',
+      regionLabel: 'Central Battleline',
+      features: ['open_ground', 'road_crossing', 'riverbank'],
+      landmarks: ['Central Fields'],
+      notes: '중앙 교전 예상 지대. 이동은 쉽지만 강과 도로 때문에 관측선이 길다.',
+      center: [558, 422],
+      polygon: [[400, 360], [515, 370], [675, 350], [710, 485], [430, 480]],
+      neighbors: ['B2', 'B3', 'B4', 'C1', 'C3', 'D2', 'D3']
+    }),
+    sector({
+      id: 'C3',
+      code: 'Plain C',
+      terrain: 'plain',
+      role: 'battleline',
+      regionLabel: 'East Battleline',
+      features: ['open_ground', 'road_axis', 'long_sightline'],
+      landmarks: ['East Road Fields'],
+      notes: '동중앙 교전 지대. 도로 축을 따라 적 주력이 움직일 가능성이 높다.',
+      center: [845, 423],
+      polygon: [[675, 350], [830, 375], [1000, 355], [1040, 455], [950, 505], [710, 485]],
+      neighbors: ['B4', 'B5', 'C2', 'D3', 'D4', 'D5'],
+      hiddenEnemySummary: { class: 'B', size: 40, type: 'infantry' }
+    }),
+
+    sector({
+      id: 'D1',
+      code: 'West Forest D',
+      terrain: 'forest',
+      role: 'concealment',
+      regionLabel: 'Southwest Woods',
+      features: ['dense_cover', 'low_visibility', 'forest_route'],
+      landmarks: ['Southwest Timber'],
+      notes: '서남쪽 숲. 후방 접근로를 보호하지만 큰 부대 이동에는 느리다.',
+      center: [96, 605],
+      polygon: [[0, 470], [145, 430], [235, 500], [210, 720], [120, 820], [0, 820]],
+      neighbors: ['B1', 'C1', 'D2', 'E3']
+    }),
+    sector({
+      id: 'D2',
+      code: 'West Forest Pocket',
+      terrain: 'forest',
+      role: 'concealment',
+      regionLabel: 'Central West Woods',
+      features: ['concealment', 'broken_ridge', 'stream_cover'],
+      landmarks: ['Forest Pocket'],
+      notes: '서중앙 숲 주머니 지형. 짧은 재편성이나 은밀 이동에 알맞다.',
+      center: [317, 560],
+      polygon: [[235, 500], [430, 480], [430, 610], [245, 625], [210, 720]],
+      neighbors: ['C1', 'C2', 'D1', 'D3', 'E1', 'E3']
+    }),
+    sector({
+      id: 'D3',
+      code: 'Plain E',
+      terrain: 'plain',
+      role: 'maneuver',
+      regionLabel: 'Forward Command Plain',
+      features: ['river_crossing', 'road_junction', 'forward_supply'],
+      landmarks: ['Forward Bridge'],
+      notes: '강 중류와 도로가 만나는 기동 지대. 야전사령부와 보급 연결의 중심이다.',
+      center: [565, 565],
+      polygon: [[430, 480], [710, 485], [720, 620], [570, 650], [430, 610]],
+      neighbors: ['C2', 'C3', 'D2', 'D4', 'E1', 'E2', 'E4'],
+      friendlySummary: '야전사령부 및 중간 보급 지점',
+      owner: 'player',
+      reportSummary: '아군 보급 거점'
+    }),
+    sector({
+      id: 'D4',
       code: 'Plain F',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Southwest Plain',
-      features: ['open_ground', 'southern_route'],
-      landmarks: ['South Track'],
       role: 'maneuver',
-      notes: '좌하단 평야. 남서부로 이어지는 이동 경로.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Movement corridor with limited cover.',
-      neighbors: ['B1', 'B2', 'C1', 'C3', 'D1', 'D2'],
-      center: { x: 230, y: 500 },
-      polygon: [
-        [110, 430],
-        [210, 330],
-        [310, 400],
-        [275, 540],
-        [180, 560]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C3',
+      regionLabel: 'East Maneuver Plain',
+      features: ['open_ground', 'road_axis', 'riverbank'],
+      landmarks: ['East Bridge Road'],
+      notes: '동측 기동 평야. 중앙 강변과 동쪽 숲을 연결하는 통로다.',
+      center: [844, 566],
+      polygon: [[710, 485], [950, 505], [1040, 455], [1005, 640], [720, 620]],
+      neighbors: ['C3', 'D3', 'D5', 'E2', 'E5']
+    }),
+    sector({
+      id: 'D5',
+      code: 'East Forest D',
+      terrain: 'forest',
+      role: 'hq-cover',
+      regionLabel: 'Eastern Rear Woods',
+      features: ['hq_cover', 'supply_cache', 'concealed_tracks'],
+      landmarks: ['HQ Woods'],
+      notes: '동남쪽 후방 숲. 작전 시작점과 주 보급 거점으로 쓰인다.',
+      center: [1112, 625],
+      polygon: [[1040, 455], [1200, 520], [1200, 820], [1000, 820], [1005, 640]],
+      neighbors: ['B5', 'C3', 'D4', 'E5'],
+      friendlySummary: '본부 및 주 보급 거점',
+      owner: 'player',
+      reportSummary: '아군 보급 거점'
+    }),
+
+    sector({
+      id: 'E1',
       code: 'Plain G',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'South Central Plain',
-      features: ['open_ground', 'supply_crossing'],
-      landmarks: ['Abandoned Farm'],
-      role: 'battleline',
-      notes: '중앙 남쪽 평야. 보급 및 교전의 중간 지점.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'A transit area between the valley and the river crossing.',
-      neighbors: ['B2', 'B3', 'B4', 'C2', 'C4', 'D2', 'D3'],
-      center: { x: 390, y: 485 },
-      polygon: [
-        [310, 400],
-        [430, 290],
-        [555, 305],
-        [520, 480],
-        [400, 560],
-        [275, 540]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C4',
+      role: 'approach',
+      regionLabel: 'Southwest Approach',
+      features: ['approach_ground', 'secondary_road', 'soft_cover'],
+      landmarks: ['Lower West Fields'],
+      notes: '남서 접근 평야. 후방에서 중앙 강변으로 들어가는 완만한 통로다.',
+      center: [420, 680],
+      polygon: [[245, 625], [430, 610], [570, 650], [575, 725], [360, 755], [210, 720]],
+      neighbors: ['D2', 'D3', 'E2', 'E3', 'E4']
+    }),
+    sector({
+      id: 'E2',
       code: 'Plain H',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'South Central East Plain',
-      features: ['open_ground', 'approach_to_river'],
-      landmarks: ['Junction Field'],
-      role: 'maneuver',
-      notes: '남중앙 동부 평야. 강과 하류 숲으로 갈라지는 접근 지점.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Bridge area and forest approach both pass nearby.',
-      neighbors: ['B3', 'B4', 'C3', 'C5', 'D3', 'D4'],
-      center: { x: 560, y: 500 },
-      polygon: [
-        [555, 305],
-        [720, 300],
-        [760, 470],
-        [620, 560],
-        [520, 480]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C5',
-      code: 'Plain I',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'East Center Plain',
-      features: ['open_ground', 'riverbank'],
-      landmarks: ['River Bank'],
-      role: 'maneuver',
-      notes: '동중앙 평야. 강변과 맞닿아 있어 도하와 관측이 중요하다.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Open ground adjacent to the river bend.',
-      neighbors: ['B4', 'B5', 'C4', 'C6', 'D4', 'D5'],
-      center: { x: 695, y: 435 },
-      polygon: [
-        [720, 300],
-        [860, 330],
-        [900, 520],
-        [760, 470]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C6',
+      role: 'approach',
+      regionLabel: 'Southeast Approach',
+      features: ['approach_ground', 'road_bend', 'riverbank'],
+      landmarks: ['Lower East Fields'],
+      notes: '남동 접근 평야. 동쪽 숲과 중앙 강변 사이에서 넓게 펼쳐진다.',
+      center: [790, 685],
+      polygon: [[570, 650], [720, 620], [1005, 640], [1000, 735], [760, 760], [575, 725]],
+      neighbors: ['D3', 'D4', 'E1', 'E4', 'E5']
+    }),
+    sector({
+      id: 'E3',
+      code: 'Ridge C',
+      terrain: 'ridge',
+      role: 'observation',
+      elevation: { min: 430, max: 610 },
+      regionLabel: 'Southwest Ridge',
+      features: ['high_ground', 'rear_overlook', 'rough_slope'],
+      landmarks: ['Southwest Crest'],
+      notes: '남서부 고지. 후방 접근로를 내려다보지만 지형이 험하다.',
+      center: [300, 780],
+      polygon: [[120, 820], [210, 720], [360, 755], [445, 820]],
+      neighbors: ['D1', 'D2', 'E1', 'E4']
+    }),
+    sector({
+      id: 'E4',
       code: 'Plain J',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'East Flank Plain',
-      features: ['open_ground', 'east_flank'],
-      landmarks: ['East Field'],
-      role: 'approach',
-      notes: '우측 측면 평야. 숲지대로 들어가는 전초구간.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Open but near the forest edge; useful for maneuvering.',
-      neighbors: ['B5', 'B6', 'C5', 'C7', 'D5'],
-      center: { x: 940, y: 425 },
-      polygon: [
-        [860, 330],
-        [1000, 320],
-        [1090, 470],
-        [900, 520]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'C7',
-      code: 'Forest Edge',
-      terrain: 'forest',
-      terrainLabel: '숲',
-      regionLabel: 'Southern Forest Edge',
-      features: ['concealment', 'forest_track'],
-      landmarks: ['Forest Track'],
-      role: 'infiltration',
-      notes: '우하단 숲의 입구. 하류에서 숲 내부로 진입하는 관문.',
-      svgFill: 'url(#forestGrad)',
-      alert: true,
-      alertLabel: '적 활동 의심',
-      visibilityHint: 'Dense concealment; observation progress should be slow here.',
-      neighbors: ['B6', 'C6', 'D4', 'D5'],
-      center: { x: 1120, y: 560 },
-      polygon: [
-        [1000, 320],
-        [1200, 350],
-        [1200, 560],
-        [1090, 470]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: {
-        class: 'C',
-        size: 20,
-        type: 'recon'
-      },
-      reportSummary: '적 활동 의심',
-      occupancy: []
-    },
-    {
-      id: 'D1',
+      role: 'support',
+      regionLabel: 'Southern Support Plain',
+      features: ['support_area', 'river_exit', 'rear_route'],
+      landmarks: ['Lower River Road'],
+      notes: '남중앙 지원 지대. 보급 이동과 후방 재편성에 쓰기 좋다.',
+      center: [600, 780],
+      polygon: [[445, 820], [360, 755], [575, 725], [760, 760], [735, 820]],
+      neighbors: ['D3', 'E1', 'E2', 'E3', 'E5']
+    }),
+    sector({
+      id: 'E5',
       code: 'Plain K',
       terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Southwest Low Plain',
-      features: ['open_ground', 'south_line'],
-      landmarks: ['Low Farm'],
-      role: 'maneuver',
-      notes: '좌하단 개활지. 후방 연결과 이동에 적합하다.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Open low ground with minimal cover.',
-      neighbors: ['C1', 'C2', 'D2'],
-      center: { x: 130, y: 740 },
-      polygon: [
-        [50, 660],
-        [180, 560],
-        [275, 540],
-        [240, 820],
-        [0, 820],
-        [0, 640]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'D2',
-      code: 'Plain L',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Southwest Central Plain',
-      features: ['open_ground', 'rear_support'],
-      landmarks: ['Supply Yard'],
       role: 'support',
-      notes: '남서 중앙 평야. 보급과 후퇴 재편성에 유리하다.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Rear support zone near the southern route.',
-      neighbors: ['C2', 'C3', 'D1', 'D3'],
-      center: { x: 340, y: 715 },
-      polygon: [
-        [275, 540],
-        [400, 560],
-        [470, 650],
-        [360, 820],
-        [240, 820]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'D3',
-      code: 'Plain M',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'South Center Plain',
-      features: ['open_ground', 'assembly_area'],
-      landmarks: ['Assembly Field'],
-      role: 'support',
-      notes: '남중앙 집결지. 보병과 포병이 재정렬하기 좋다.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Useful for regrouping and staging.',
-      neighbors: ['C3', 'C4', 'D2', 'D4'],
-      center: { x: 520, y: 665 },
-      polygon: [
-        [400, 560],
-        [520, 480],
-        [620, 560],
-        [590, 700],
-        [470, 650]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'D4',
-      code: 'Plain N',
-      terrain: 'plain',
-      terrainLabel: '평야',
-      regionLabel: 'Southeast Transition Plain',
-      features: ['open_ground', 'river_bend'],
-      landmarks: ['Lower Junction'],
-      role: 'approach',
-      notes: '남동 평야. 강 굽이와 숲 접근로가 만나는 전이 지대.',
-      svgFill: 'url(#plainGrad)',
-      alert: false,
-      alertLabel: null,
-      visibilityHint: 'Transition area between river bend and forest edge.',
-      neighbors: ['C4', 'C5', 'D3', 'D5', 'C7'],
-      center: { x: 735, y: 645 },
-      polygon: [
-        [620, 560],
-        [760, 470],
-        [900, 520],
-        [850, 680],
-        [700, 770],
-        [590, 700]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: null,
-      reportSummary: '미탐색',
-      occupancy: []
-    },
-    {
-      id: 'D5',
-      code: 'Forest D',
-      terrain: 'forest',
-      terrainLabel: '숲',
-      regionLabel: 'Southeast Forest',
-      features: ['concealment', 'forest_track', 'river_mouth'],
-      landmarks: ['Forest Camp', 'Hidden Trail'],
-      role: 'infiltration',
-      notes: '우하단 숲 지역. 강 하류와 은폐 이동이 결합되는 핵심 구역.',
-      svgFill: 'url(#forestGrad)',
-      alert: true,
-      alertLabel: '적 활동',
-      visibilityHint: 'Dense woods reduce progress of observation drastically.',
-      neighbors: ['C5', 'C6', 'C7', 'D4'],
-      center: { x: 1030, y: 695 },
-      polygon: [
-        [900, 520],
-        [1090, 470],
-        [1200, 560],
-        [1200, 820],
-        [850, 680]
-      ],
-      control: 'unseen',
-      friendlySummary: null,
-      enemySummary: {
-        class: 'B',
-        size: 36,
-        type: 'infantry'
-      },
-      reportSummary: '적 활동',
-      occupancy: []
-    }
+      regionLabel: 'Southeast Support Plain',
+      features: ['support_area', 'road_exit', 'forest_edge'],
+      landmarks: ['Lower East Road'],
+      notes: '남동쪽 지원 지대. 동쪽 숲과 후방 도로가 맞닿는 위험한 출구다.',
+      center: [880, 780],
+      polygon: [[735, 820], [760, 760], [1000, 735], [1000, 820]],
+      neighbors: ['D4', 'D5', 'E2', 'E4'],
+      hiddenEnemySummary: { class: 'A', size: 18, type: 'artillery' }
+    })
   ]
 };
 
 export function getSectorById(id) {
-  return MAP.sectors.find(sector => sector.id === id) || null;
+  return MAP.sectors.find((item) => item.id === id) || null;
 }
 
 // Translates an internal grid id (e.g. "B5") to the player-facing code
-// (e.g. "Plain D"). Grid ids are an implementation detail used for the
-// adjacency graph; the UI should only ever show codes. Falls back to the
-// id itself if no matching sector exists.
+// (e.g. "East Forest Edge"). Grid ids are an implementation detail used for
+// adjacency; the UI should only show codes.
 export function codeForSector(id) {
   if (!id) return '-';
   return getSectorById(id)?.code ?? id;
 }
 
 export function getNeighborSectors(id) {
-  const sector = getSectorById(id);
-  if (!sector) return [];
-  return sector.neighbors.map(getSectorById).filter(Boolean);
+  const item = getSectorById(id);
+  if (!item) return [];
+  return item.neighbors.map(getSectorById).filter(Boolean);
 }
 
-export function summarizeSector(sector) {
-  if (!sector) return null;
+export function summarizeSector(item) {
+  if (!item) return null;
   return {
-    id: sector.id,
-    code: sector.code,
-    terrain: sector.terrain,
-    terrainLabel: sector.terrainLabel,
-    regionLabel: sector.regionLabel,
-    landmarks: sector.landmarks,
-    notes: sector.notes,
-    reportSummary: sector.reportSummary,
-    alert: sector.alert,
-    alertLabel: sector.alertLabel,
-    visibilityHint: sector.visibilityHint,
-    enemySummary: sector.enemySummary,
-    control: sector.control,
-    neighbors: sector.neighbors
+    id: item.id,
+    code: item.code,
+    terrain: item.terrain,
+    terrainLabel: item.terrainLabel,
+    regionLabel: item.regionLabel,
+    landmarks: item.landmarks,
+    notes: item.notes,
+    reportSummary: item.reportSummary,
+    alert: item.alert,
+    alertLabel: item.alertLabel,
+    visibilityHint: item.visibilityHint,
+    enemySummary: item.enemySummary,
+    hiddenEnemySummary: item.hiddenEnemySummary,
+    control: item.control,
+    neighbors: item.neighbors,
+    center: item.center,
+    labelPoint: item.labelPoint,
+    elevation: item.elevation
   };
 }

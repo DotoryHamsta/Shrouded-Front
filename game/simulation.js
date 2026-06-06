@@ -4,8 +4,8 @@
 // This file advances time, moves units, drains food, handles recon progress,
 // creates reports, and resolves lightweight combat.
 
-import { MAP, getSectorById } from '../data/map.js?v=27';
-import { Sector } from './sector.js?v=27';
+import { MAP, getSectorById } from '../data/map.js?v=36';
+import { Sector } from './sector.js?v=36';
 import { MINUTES_PER_HOUR, Report, REPORT_CLASS, REPORT_KINDS } from './report.js?v=28';
 import {
   Unit,

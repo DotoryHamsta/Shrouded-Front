@@ -4,7 +4,7 @@
 // This module renders the selected sector details, recent reports,
 // unit summaries, and operational notes into the right-side panel.
 
-import { getSectorById, codeForSector } from '../data/map.js?v=27';
+import { getSectorById, codeForSector } from '../data/map.js?v=36';
 import { formatTime } from '../game/report.js?v=28';
 import { unitLabel } from '../game/unit.js?v=31';
 

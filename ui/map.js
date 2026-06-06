@@ -2,10 +2,11 @@
 // SVG map renderer for Shrouded Front.
 // Renders the full sector map from data/map.js.
 
-import { MAP, getSectorById } from '../data/map.js?v=27';
-import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=29';
+import { MAP, getSectorById } from '../data/map.js?v=36';
+import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=36';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const MAP_VIEWBOX = MAP.viewBox ?? { width: 1200, height: 820 };
 
 function createSvgEl(tag) {
   return document.createElementNS(SVG_NS, tag);
@@ -19,10 +20,22 @@ function escapeText(value) {
   return String(value ?? '');
 }
 
-function centerOf(sector) {
-  if (sector?.center && Number.isFinite(sector.center.x) && Number.isFinite(sector.center.y)) {
-    return sector.center;
+function asPoint(value) {
+  if (Array.isArray(value) && value.length >= 2) {
+    const [x, y] = value;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   }
+
+  if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) {
+    return { x: value.x, y: value.y };
+  }
+
+  return null;
+}
+
+function centerOf(sector) {
+  const explicit = asPoint(sector?.center);
+  if (explicit) return explicit;
 
   const points = Array.isArray(sector?.polygon) ? sector.polygon : [];
   if (points.length === 0) return { x: 0, y: 0 };
@@ -79,6 +92,9 @@ function polygonCentroid(points = []) {
 }
 
 function labelPointOf(sector) {
+  const explicit = asPoint(sector?.labelPoint);
+  if (explicit) return explicit;
+
   const points = Array.isArray(sector?.polygon) ? sector.polygon : [];
   if (points.length > 0) return polygonCentroid(points);
   return centerOf(sector);
@@ -269,7 +285,7 @@ export class SectorMapView {
     shell.style.position = 'relative';
 
     const svg = createSvgEl('svg');
-    svg.setAttribute('viewBox', '0 0 1200 820');
+    svg.setAttribute('viewBox', `0 0 ${MAP_VIEWBOX.width} ${MAP_VIEWBOX.height}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.style.width = '100%';
     svg.style.height = '100%';
@@ -288,30 +304,16 @@ export class SectorMapView {
       this._gradient('swampGrad', '#526052', '#343f3a')
     );
 
-    const river = createSvgEl('path');
-    river.setAttribute('d', 'M 125 62 C 205 130, 245 150, 290 202 S 390 320, 475 362 S 620 470, 705 560 S 875 690, 1040 760');
-    river.setAttribute('fill', 'none');
-    river.setAttribute('stroke', 'rgba(49, 123, 174, 0.96)');
-    river.setAttribute('stroke-width', '10');
-    river.setAttribute('stroke-linecap', 'round');
-    river.setAttribute('stroke-linejoin', 'round');
-    river.setAttribute('filter', 'drop-shadow(0 0 6px rgba(49,123,174,0.24))');
-
-    const riverFoam = createSvgEl('path');
-    riverFoam.setAttribute('d', 'M 125 62 C 205 130, 245 150, 290 202 S 390 320, 475 362 S 620 470, 705 560 S 875 690, 1040 760');
-    riverFoam.setAttribute('fill', 'none');
-    riverFoam.setAttribute('stroke', 'rgba(209, 236, 255, 0.36)');
-    riverFoam.setAttribute('stroke-width', '3');
-    riverFoam.setAttribute('stroke-linecap', 'round');
-    riverFoam.setAttribute('stroke-linejoin', 'round');
-
+    const background = this._buildBackgroundImage();
     const sectorLayer = createSvgEl('g');
     const labelLayer = createSvgEl('g');
     const anchorLayer = createSvgEl('g');
     const unitLayer = createSvgEl('g');
     const pinLayer = createSvgEl('g');
 
-    svg.append(defs, river, riverFoam, sectorLayer, labelLayer, anchorLayer, unitLayer, pinLayer);
+    svg.append(defs);
+    if (background) svg.appendChild(background);
+    svg.append(sectorLayer, labelLayer, anchorLayer, unitLayer, pinLayer);
     shell.appendChild(svg);
     this.mount.appendChild(shell);
     this.svg = svg;
@@ -321,6 +323,22 @@ export class SectorMapView {
     this._buildSectors(sectorLayer);
     this._buildOverlays(labelLayer, pinLayer);
     this.update();
+  }
+
+  _buildBackgroundImage() {
+    const href = MAP.background?.href;
+    if (!href) return null;
+
+    const image = createSvgEl('image');
+    image.setAttribute('href', href);
+    image.setAttribute('x', '0');
+    image.setAttribute('y', '0');
+    image.setAttribute('width', `${MAP_VIEWBOX.width}`);
+    image.setAttribute('height', `${MAP_VIEWBOX.height}`);
+    image.setAttribute('preserveAspectRatio', 'none');
+    image.setAttribute('pointer-events', 'none');
+    image.setAttribute('opacity', '0.98');
+    return image;
   }
 
   _gradient(id, start, end) {
@@ -344,16 +362,20 @@ export class SectorMapView {
   }
 
   _buildSectors(layer) {
+    const rasterBacked = Boolean(MAP.background?.href);
+
     for (const rawSector of MAP.sectors) {
       const sector = getSectorById(rawSector.id) || rawSector;
       const polygon = createSvgEl('polygon');
       polygon.dataset.sectorId = sector.id;
       polygon.setAttribute('points', toPointsString(sector.polygon || []));
-      polygon.setAttribute('fill', sector.svgFill || `url(#${this._terrainGradientId(sector.terrain)})`);
-      polygon.setAttribute('stroke', 'rgba(255,255,255,0.16)');
-      polygon.setAttribute('stroke-width', '2');
+      polygon.setAttribute('fill', rasterBacked ? 'rgba(255,255,255,0.025)' : (sector.svgFill || `url(#${this._terrainGradientId(sector.terrain)})`));
+      polygon.setAttribute('stroke', rasterBacked ? 'rgba(237,226,188,0.42)' : 'rgba(255,255,255,0.16)');
+      polygon.setAttribute('stroke-width', rasterBacked ? '1.6' : '2');
+      polygon.setAttribute('stroke-dasharray', rasterBacked ? '4 6' : '');
+      polygon.setAttribute('vector-effect', 'non-scaling-stroke');
       polygon.style.cursor = 'pointer';
-      polygon.style.transition = 'filter 120ms ease, stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease';
+      polygon.style.transition = 'fill 120ms ease, filter 120ms ease, stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease';
 
       polygon.addEventListener('click', () => {
         this.selectedSectorId = sector.id;
@@ -403,6 +425,9 @@ export class SectorMapView {
       code.setAttribute('fill', 'rgba(240,245,250,0.94)');
       code.setAttribute('font-size', '18');
       code.setAttribute('font-weight', '800');
+      code.setAttribute('paint-order', 'stroke');
+      code.setAttribute('stroke', 'rgba(5,8,12,0.74)');
+      code.setAttribute('stroke-width', '4');
       code.setAttribute('pointer-events', 'none');
       code.textContent = escapeText(sector.code);
 
@@ -412,6 +437,9 @@ export class SectorMapView {
       status.setAttribute('text-anchor', 'middle');
       status.setAttribute('fill', 'rgba(216,224,235,0.75)');
       status.setAttribute('font-size', '12');
+      status.setAttribute('paint-order', 'stroke');
+      status.setAttribute('stroke', 'rgba(5,8,12,0.72)');
+      status.setAttribute('stroke-width', '3');
       status.setAttribute('pointer-events', 'none');
       status.textContent = getStatusText(sector);
 
@@ -421,6 +449,9 @@ export class SectorMapView {
       units.setAttribute('text-anchor', 'middle');
       units.setAttribute('fill', 'rgba(166,180,199,0.74)');
       units.setAttribute('font-size', '11');
+      units.setAttribute('paint-order', 'stroke');
+      units.setAttribute('stroke', 'rgba(5,8,12,0.68)');
+      units.setAttribute('stroke-width', '3');
       units.setAttribute('pointer-events', 'none');
       units.textContent = getOverlayText(sector, this.stateProvider());
 
@@ -447,6 +478,7 @@ export class SectorMapView {
     this.selectedSectorId = state.selectedSectorId ?? this.selectedSectorId;
     this.hoveredSectorId = state.hoveredSectorId ?? this.hoveredSectorId;
     if ('selectedUnitId' in state) this.selectedUnitId = state.selectedUnitId;
+    const rasterBacked = Boolean(MAP.background?.href);
 
     for (const rawSector of MAP.sectors) {
       const sector = state.sectorsById?.[rawSector.id] ?? getSectorById(rawSector.id) ?? rawSector;
@@ -459,8 +491,25 @@ export class SectorMapView {
       const hovered = this.hoveredSectorId === sector.id;
 
       if (polygon) {
-        polygon.setAttribute('stroke', alertState ? 'rgba(255,94,94,0.92)' : selected ? 'rgba(143,191,255,0.92)' : 'rgba(255,255,255,0.16)');
-        polygon.setAttribute('stroke-width', alertState || selected ? '4' : '2');
+        polygon.setAttribute('fill', alertState
+          ? 'rgba(255,94,94,0.14)'
+          : selected
+            ? 'rgba(143,191,255,0.15)'
+            : hovered
+              ? 'rgba(255,255,255,0.08)'
+              : rasterBacked
+                ? 'rgba(255,255,255,0.025)'
+                : (sector.svgFill || `url(#${this._terrainGradientId(sector.terrain)})`));
+        polygon.setAttribute('stroke', alertState
+          ? 'rgba(255,94,94,0.92)'
+          : selected
+            ? 'rgba(143,191,255,0.96)'
+            : hovered
+              ? 'rgba(255,255,255,0.74)'
+              : rasterBacked
+                ? 'rgba(237,226,188,0.42)'
+                : 'rgba(255,255,255,0.16)');
+        polygon.setAttribute('stroke-width', alertState || selected ? '4' : rasterBacked ? '1.6' : '2');
         polygon.setAttribute('opacity', sector.control === 'unseen' ? '0.94' : '1');
         polygon.style.filter = hovered ? 'brightness(1.08)' : selected ? 'brightness(1.12)' : '';
       }

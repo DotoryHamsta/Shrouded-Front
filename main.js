@@ -1,16 +1,16 @@
-import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=32';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=36';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
-import { codeForSector } from './data/map.js?v=27';
+import { codeForSector } from './data/map.js?v=36';
 import {
   CAPABILITY_KEYS,
   CAPABILITY_LABELS,
   DEFAULT_COMM_ANCHORS,
   capabilityBand
 } from './game/formation.js?v=31';
-import { createMapView } from './ui/map.js?v=31';
-import { createDetailPanel } from './ui/details.js?v=31';
-import { createOperationsBoard } from './ui/operations.js?v=31';
-import { createUnitRoster } from './ui/roster.js?v=30';
+import { createMapView } from './ui/map.js?v=36';
+import { createDetailPanel } from './ui/details.js?v=36';
+import { createOperationsBoard } from './ui/operations.js?v=36';
+import { createUnitRoster } from './ui/roster.js?v=36';
 import { createFormationSetup } from './ui/setup.js?v=31';
 
 const TICK_MS = 1000;

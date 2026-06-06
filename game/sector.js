@@ -4,7 +4,20 @@
 // This module wraps raw map data into a game-friendly object.
 // It does not touch the DOM.
 
-import { MAP, getSectorById } from '../data/map.js?v=27';
+import { MAP, getSectorById } from '../data/map.js?v=36';
+
+function clonePoint(value, fallback = { x: 0, y: 0 }) {
+  if (Array.isArray(value) && value.length >= 2) {
+    const [x, y] = value;
+    return { x, y };
+  }
+
+  if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) {
+    return { x: value.x, y: value.y };
+  }
+
+  return { ...fallback };
+}
 
 export class Sector {
   constructor(raw) {
@@ -26,7 +39,9 @@ export class Sector {
     this.alertLabel = raw.alertLabel ?? null;
     this.visibilityHint = raw.visibilityHint ?? '';
     this.neighbors = Array.isArray(raw.neighbors) ? [...raw.neighbors] : [];
-    this.center = raw.center ? { ...raw.center } : { x: 0, y: 0 };
+    this.center = clonePoint(raw.center);
+    this.labelPoint = clonePoint(raw.labelPoint, this.center);
+    this.elevation = raw.elevation ? { ...raw.elevation } : null;
     this.polygon = Array.isArray(raw.polygon)
       ? raw.polygon.map(([x, y]) => [x, y])
       : [];
@@ -76,6 +91,8 @@ export class Sector {
       visibilityHint: this.visibilityHint,
       neighbors: [...this.neighbors],
       center: { ...this.center },
+      labelPoint: { ...this.labelPoint },
+      elevation: this.elevation ? { ...this.elevation } : null,
       polygon: this.polygon.map(([x, y]) => [x, y]),
       control: this.control,
       friendlySummary: this.friendlySummary ? { ...this.friendlySummary } : null,
@@ -196,10 +213,13 @@ export class Sector {
       visibilityHint: this.visibilityHint,
       neighbors: [...this.neighbors],
       center: { ...this.center },
+      labelPoint: { ...this.labelPoint },
+      elevation: this.elevation ? { ...this.elevation } : null,
       polygon: this.polygon.map(([x, y]) => [x, y]),
       control: this.control,
       friendlySummary: this.friendlySummary,
       enemySummary: this.enemySummary ? { ...this.enemySummary } : null,
+      hiddenEnemySummary: this.hiddenEnemySummary ? { ...this.hiddenEnemySummary } : null,
       reportSummary: this.reportSummary,
       occupancy: [...this.occupancy],
       selected: this.selected,
@@ -260,6 +280,9 @@ export function summarizeSector(sectorOrId) {
     enemySummary: sector.enemySummary ? { ...sector.enemySummary } : null,
     control: sector.control ?? 'unseen',
     neighbors: [...(sector.neighbors ?? [])],
+    center: sector.center ? { ...sector.center } : null,
+    labelPoint: sector.labelPoint ? { ...sector.labelPoint } : null,
+    elevation: sector.elevation ? { ...sector.elevation } : null,
     reconProgress: sector.reconProgress ?? 0,
     owner: sector.owner ?? 'neutral'
   };
