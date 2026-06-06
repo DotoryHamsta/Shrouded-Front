@@ -4,7 +4,7 @@
 // This module wraps raw map data into a game-friendly object.
 // It does not touch the DOM.
 
-import { MAP, getSectorById } from '../data/map.js?v=36';
+import { MAP, getActiveMap, getSectorById } from '../data/map.js?v=37';
 
 function clonePoint(value, fallback = { x: 0, y: 0 }) {
   if (Array.isArray(value) && value.length >= 2) {
@@ -70,8 +70,8 @@ export class Sector {
     return new Sector(raw);
   }
 
-  static all() {
-    return MAP.sectors.map((raw) => new Sector(raw));
+  static all(map = getActiveMap()) {
+    return (map?.sectors ?? MAP.sectors).map((raw) => new Sector(raw));
   }
 
   clone() {
@@ -231,20 +231,20 @@ export class Sector {
   }
 }
 
-export function createSectorIndex() {
+export function createSectorIndex(map = getActiveMap()) {
   const index = new Map();
-  for (const raw of MAP.sectors) {
+  for (const raw of map?.sectors ?? MAP.sectors) {
     index.set(raw.id, new Sector(raw));
   }
   return index;
 }
 
-export function listSectorIds() {
-  return MAP.sectors.map((sector) => sector.id);
+export function listSectorIds(map = getActiveMap()) {
+  return (map?.sectors ?? MAP.sectors).map((sector) => sector.id);
 }
 
-export function listSectors() {
-  return MAP.sectors.map((raw) => new Sector(raw));
+export function listSectors(map = getActiveMap()) {
+  return (map?.sectors ?? MAP.sectors).map((raw) => new Sector(raw));
 }
 
 export function getNeighborSectors(sectorOrId) {

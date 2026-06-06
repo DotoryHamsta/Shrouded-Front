@@ -1,17 +1,17 @@
-import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=36';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=37';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
-import { codeForSector } from './data/map.js?v=36';
+import { DEFAULT_MAP_ID, codeForSector, getActiveMap, getMapById, setActiveMap } from './data/map.js?v=37';
 import {
   CAPABILITY_KEYS,
   CAPABILITY_LABELS,
   DEFAULT_COMM_ANCHORS,
   capabilityBand
 } from './game/formation.js?v=31';
-import { createMapView } from './ui/map.js?v=36';
+import { createMapView } from './ui/map.js?v=37';
 import { createDetailPanel } from './ui/details.js?v=36';
 import { createOperationsBoard } from './ui/operations.js?v=36';
 import { createUnitRoster } from './ui/roster.js?v=36';
-import { createFormationSetup } from './ui/setup.js?v=31';
+import { createFormationSetup } from './ui/setup.js?v=37';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -94,6 +94,7 @@ root.innerHTML = `
 
 let simulation = createDefaultSimulation();
 let state = simulation.getState();
+let selectedMap = getActiveMap();
 let selectedSectorId = state.units[0]?.sectorId
   ?? state.sectors[0]?.id
   ?? null;
@@ -188,6 +189,7 @@ const unitRoster = createUnitRoster({
 
 const mapView = createMapView({
   mount: mainMapMount,
+  map: selectedMap,
   stateProvider: getViewState,
   onSectorSelect: (sector) => {
     selectedSectorId = sector.id;
@@ -214,11 +216,14 @@ const setupFlow = createFormationSetup({
   onStart: startOperation
 });
 
-function startOperation(units = []) {
+function startOperation(payload = {}) {
+  const units = Array.isArray(payload) ? payload : (payload.units ?? []);
+  selectedMap = setActiveMap(payload.mapId ?? DEFAULT_MAP_ID) ?? getMapById(DEFAULT_MAP_ID);
   simulation = createSimulation({
+    map: selectedMap,
     units,
     reports: [],
-    commAnchors: DEFAULT_COMM_ANCHORS
+    commAnchors: selectedMap.commAnchors ?? DEFAULT_COMM_ANCHORS
   });
   state = simulation.getState();
   selectedSectorId = state.units[0]?.sectorId ?? state.sectors[0]?.id ?? null;
@@ -234,6 +239,7 @@ function startOperation(units = []) {
   closeUnitCommand();
   setPanelView('sector');
   setSpeed(1);
+  mapView.setMap(selectedMap);
   renderAll();
 }
 

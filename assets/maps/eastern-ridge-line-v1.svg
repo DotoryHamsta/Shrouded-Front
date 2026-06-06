@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820">
+  <defs>
+    <filter id="terrainNoise" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="5" seed="41"/>
+      <feColorMatrix type="saturate" values="0.38"/>
+      <feBlend mode="soft-light" in2="SourceGraphic"/>
+    </filter>
+    <linearGradient id="plain2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#596145"/>
+      <stop offset="55%" stop-color="#343b30"/>
+      <stop offset="100%" stop-color="#1d251f"/>
+    </linearGradient>
+    <linearGradient id="ridge2" x1="0.1" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#9c8a67"/>
+      <stop offset="42%" stop-color="#5c4c3a"/>
+      <stop offset="100%" stop-color="#241e18"/>
+    </linearGradient>
+    <linearGradient id="forest2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#315a36"/>
+      <stop offset="58%" stop-color="#17311f"/>
+      <stop offset="100%" stop-color="#0b1510"/>
+    </linearGradient>
+    <linearGradient id="valley2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#394a50"/>
+      <stop offset="50%" stop-color="#243339"/>
+      <stop offset="100%" stop-color="#131f24"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="820" fill="#0d1511"/>
+  <g filter="url(#terrainNoise)">
+    <polygon fill="url(#ridge2)" points="80,0 520,0 545,105 475,165 340,170 220,145 95,95"/>
+    <polygon fill="url(#ridge2)" points="520,0 1160,0 1125,115 1010,165 850,145 700,190 545,105"/>
+    <polygon fill="url(#forest2)" points="0,120 95,95 220,145 200,350 145,430 0,470"/>
+    <polygon fill="url(#valley2)" points="200,145 340,170 430,240 400,360 220,350"/>
+    <polygon fill="url(#plain2)" points="340,170 475,165 545,105 700,190 675,350 515,370 400,360 430,240"/>
+    <polygon fill="url(#valley2)" points="700,190 850,145 1010,165 1000,355 830,375 675,350"/>
+    <polygon fill="url(#forest2)" points="1010,165 1160,95 1200,130 1200,520 1040,455 1000,355"/>
+    <polygon fill="url(#forest2)" points="145,430 220,350 400,360 430,480 235,500"/>
+    <polygon fill="#454a38" points="400,360 515,370 675,350 710,485 430,480"/>
+    <polygon fill="#3f473c" points="675,350 830,375 1000,355 1040,455 950,505 710,485"/>
+    <polygon fill="url(#forest2)" points="0,470 145,430 235,500 210,720 120,820 0,820"/>
+    <polygon fill="url(#ridge2)" points="235,500 430,480 430,610 245,625 210,720"/>
+    <polygon fill="#4a513b" points="430,480 710,485 720,620 570,650 430,610"/>
+    <polygon fill="#414938" points="710,485 950,505 1040,455 1005,640 720,620"/>
+    <polygon fill="url(#forest2)" points="1040,455 1200,520 1200,820 1000,820 1005,640"/>
+    <polygon fill="#586742" points="245,625 430,610 570,650 575,725 360,755 210,720"/>
+    <polygon fill="#50643e" points="570,650 720,620 1005,640 1000,735 760,760 575,725"/>
+    <polygon fill="url(#ridge2)" points="120,820 210,720 360,755 445,820"/>
+    <polygon fill="#46533a" points="445,820 360,755 575,725 760,760 735,820"/>
+    <polygon fill="#344334" points="735,820 760,760 1000,735 1000,820"/>
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1020 0 C970 150 900 260 915 390 C930 520 820 625 790 820" stroke="#07131a" stroke-width="23" opacity="0.75"/>
+    <path d="M1020 0 C970 150 900 260 915 390 C930 520 820 625 790 820" stroke="#235d86" stroke-width="12" opacity="0.88"/>
+    <path d="M1020 0 C970 150 900 260 915 390 C930 520 820 625 790 820" stroke="#96c9e7" stroke-width="3" opacity="0.28"/>
+    <path d="M260 820 C335 650 480 555 650 480 C815 405 965 280 1130 90" stroke="#201c16" stroke-width="15" opacity="0.58"/>
+    <path d="M260 820 C335 650 480 555 650 480 C815 405 965 280 1130 90" stroke="#a09073" stroke-width="7" opacity="0.72"/>
+    <path d="M0 335 C210 360 360 300 505 355 C620 400 765 390 930 455" stroke="#1c1914" stroke-width="11" opacity="0.44"/>
+    <path d="M0 335 C210 360 360 300 505 355 C620 400 765 390 930 455" stroke="#8c8069" stroke-width="5" opacity="0.62"/>
+  </g>
+  <g opacity="0.4" stroke="#d0c49d" stroke-width="2.3" fill="none">
+    <path d="M120 58 l72 30 l66 -20 l64 26 l80 -14"/>
+    <path d="M580 72 l66 25 l73 -18 l54 35 l90 -22"/>
+    <path d="M276 536 l46 24 l54 -13 l38 30"/>
+    <path d="M170 785 l52 -36 l74 28 l48 -38"/>
+  </g>
+  <rect width="1200" height="820" fill="none" stroke="#1c2a32" stroke-width="2"/>
+</svg>

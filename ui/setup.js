@@ -24,6 +24,7 @@ import {
   roleLabel
 } from '../game/formation.js?v=31';
 import { MISSION_ROLE_LABELS } from '../game/unit.js?v=31';
+import { DEFAULT_MAP_ID, codeForSector, getMapById, listMaps } from '../data/map.js?v=37';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -83,6 +84,7 @@ export class FormationSetup {
     this.onStart = onStart;
     this.state = {
       step: 'pool',
+      mapId: DEFAULT_MAP_ID,
       pool: normalizePool(DEFAULT_POOL),
       drafts: normalizeDrafts([], DEFAULT_POOL)
     };
@@ -111,6 +113,8 @@ export class FormationSetup {
       this.adjustDraft(Number(button.dataset.draftIndex), roleId, 1);
     } else if (action === 'draft-dec') {
       this.adjustDraft(Number(button.dataset.draftIndex), roleId, -1);
+    } else if (action === 'map-select') {
+      this.selectMap(button.dataset.mapId);
     } else if (action === 'start-operation') {
       this.startOperation();
     }
@@ -120,6 +124,13 @@ export class FormationSetup {
     this.state.step = step === 'units' ? 'units' : 'pool';
     this.state.pool = normalizePool(this.state.pool);
     this.state.drafts = normalizeDrafts(this.state.drafts, this.state.pool);
+    this.render();
+  }
+
+  selectMap(mapId) {
+    const map = getMapById(mapId);
+    if (!map) return;
+    this.state.mapId = map.id;
     this.render();
   }
 
@@ -167,7 +178,13 @@ export class FormationSetup {
     this.state.pool = normalizePool(this.state.pool);
     this.state.drafts = normalizeDrafts(this.state.drafts, this.state.pool);
     if (!this.canStart()) return;
-    this.onStart(buildUnitsFromDrafts(this.state.drafts, this.state.pool));
+    const map = getMapById(this.state.mapId) ?? getMapById(DEFAULT_MAP_ID);
+    this.onStart({
+      mapId: map.id,
+      units: buildUnitsFromDrafts(this.state.drafts, this.state.pool, {
+        startSectorId: map.startSectorId ?? 'D5'
+      })
+    });
   }
 
   canStart() {
@@ -182,13 +199,15 @@ export class FormationSetup {
     const total = poolTotal(this.state.pool);
     const leaderSlots = this.state.pool.leader;
     const step = this.state.step;
+    const selectedMap = getMapById(this.state.mapId) ?? getMapById(DEFAULT_MAP_ID);
+    const startLabel = codeForSector(selectedMap.startSectorId, selectedMap);
 
     this.mount.innerHTML = `
       <div class="sf-setup-shell">
         <header class="sf-setup-top">
           <div>
             <h1>Shrouded Front</h1>
-            <p>작전 편성 · D1 06:00 · Forest D 전개</p>
+            <p>작전 편성 · D1 06:00 · ${escapeHtml(startLabel)} 전개</p>
           </div>
           <div class="sf-setup-status">
             <span>${escapeHtml(total)}/${TOTAL_PERSONNEL_LIMIT}명</span>
@@ -199,13 +218,14 @@ export class FormationSetup {
         <main class="sf-setup-main">
           <section class="sf-setup-brief">
             <div class="sf-brief-kicker">Mission</div>
-            <h2>북쪽 계곡 접근로 정찰</h2>
-            <p>가용 병력 안에서 보직별 인원을 정하고, 리더 슬롯 수만큼 작전 단위를 편성한다.</p>
+            <h2>${escapeHtml(selectedMap.mission?.title ?? selectedMap.name)}</h2>
+            <p>${escapeHtml(selectedMap.mission?.briefing ?? selectedMap.summary ?? selectedMap.description)}</p>
             <div class="sf-brief-metrics">
               <span>한도 ${TOTAL_PERSONNEL_LIMIT}명</span>
               <span>리더 ${leaderSlots}명</span>
-              <span>시작 D5</span>
+              <span>시작 ${escapeHtml(startLabel)}</span>
             </div>
+            ${this.renderMapChooser(selectedMap)}
           </section>
 
           <section class="sf-setup-workspace">
@@ -216,6 +236,32 @@ export class FormationSetup {
             ${step === 'units' ? this.renderUnitBuilder() : this.renderPoolBuilder()}
           </section>
         </main>
+      </div>
+    `;
+  }
+
+  renderMapChooser(selectedMap) {
+    return `
+      <div class="sf-map-picker">
+        <div class="sf-map-picker-title">작전 지도</div>
+        <div class="sf-map-picker-list">
+          ${listMaps().map((map) => {
+            const active = map.id === selectedMap.id;
+            const start = codeForSector(map.startSectorId, getMapById(map.id));
+            return `
+              <button
+                type="button"
+                class="sf-map-choice ${active ? 'active' : ''}"
+                data-setup-action="map-select"
+                data-map-id="${escapeHtml(map.id)}"
+              >
+                <strong>${escapeHtml(map.name)}</strong>
+                <span>${escapeHtml(map.summary ?? map.description)}</span>
+                <small>시작 ${escapeHtml(start)}</small>
+              </button>
+            `;
+          }).join('')}
+        </div>
       </div>
     `;
   }

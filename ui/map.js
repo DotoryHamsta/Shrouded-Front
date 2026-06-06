@@ -2,11 +2,11 @@
 // SVG map renderer for Shrouded Front.
 // Renders the full sector map from data/map.js.
 
-import { MAP, getSectorById } from '../data/map.js?v=36';
+import { getActiveMap, getSectorById } from '../data/map.js?v=37';
 import { unitSymbolKind, unitTone, describeUnitActivity } from './unit-display.js?v=36';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const MAP_VIEWBOX = MAP.viewBox ?? { width: 1200, height: 820 };
+const DEFAULT_VIEWBOX = { width: 1200, height: 820 };
 
 function createSvgEl(tag) {
   return document.createElementNS(SVG_NS, tag);
@@ -250,7 +250,8 @@ export class SectorMapView {
     onSectorLeave = () => {},
     onOpenOperations = () => {},
     onOpenSectorDetails = () => {},
-    onUnitSelect = () => {}
+    onUnitSelect = () => {},
+    map = getActiveMap()
   } = {}) {
     if (!mount) throw new Error('SectorMapView requires a mount element.');
 
@@ -262,6 +263,7 @@ export class SectorMapView {
     this.onOpenOperations = onOpenOperations;
     this.onOpenSectorDetails = onOpenSectorDetails;
     this.onUnitSelect = onUnitSelect;
+    this.map = map ?? getActiveMap();
 
     this.svg = null;
     this.selectedSectorId = null;
@@ -274,8 +276,30 @@ export class SectorMapView {
     this.anchorLayer = null;
   }
 
+  setMap(map = getActiveMap()) {
+    this.map = map ?? getActiveMap();
+    this.selectedSectorId = null;
+    this.hoveredSectorId = null;
+    this.selectedUnitId = null;
+    if (this.mount) this.init();
+    return this;
+  }
+
+  _viewBox() {
+    return this.map?.viewBox ?? DEFAULT_VIEWBOX;
+  }
+
+  _sectorById(id) {
+    return getSectorById(id, this.map);
+  }
+
   init() {
     this.mount.innerHTML = '';
+    this.sectorElements.clear();
+    this.labelElements.clear();
+    this.pinElements.clear();
+
+    const viewBox = this._viewBox();
 
     const shell = document.createElement('div');
     shell.className = 'sf-map-shell';
@@ -285,7 +309,7 @@ export class SectorMapView {
     shell.style.position = 'relative';
 
     const svg = createSvgEl('svg');
-    svg.setAttribute('viewBox', `0 0 ${MAP_VIEWBOX.width} ${MAP_VIEWBOX.height}`);
+    svg.setAttribute('viewBox', `0 0 ${viewBox.width} ${viewBox.height}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg.style.width = '100%';
     svg.style.height = '100%';
@@ -326,15 +350,16 @@ export class SectorMapView {
   }
 
   _buildBackgroundImage() {
-    const href = MAP.background?.href;
+    const href = this.map?.background?.href;
     if (!href) return null;
+    const viewBox = this._viewBox();
 
     const image = createSvgEl('image');
     image.setAttribute('href', href);
     image.setAttribute('x', '0');
     image.setAttribute('y', '0');
-    image.setAttribute('width', `${MAP_VIEWBOX.width}`);
-    image.setAttribute('height', `${MAP_VIEWBOX.height}`);
+    image.setAttribute('width', `${viewBox.width}`);
+    image.setAttribute('height', `${viewBox.height}`);
     image.setAttribute('preserveAspectRatio', 'none');
     image.setAttribute('pointer-events', 'none');
     image.setAttribute('opacity', '0.98');
@@ -362,10 +387,10 @@ export class SectorMapView {
   }
 
   _buildSectors(layer) {
-    const rasterBacked = Boolean(MAP.background?.href);
+    const rasterBacked = Boolean(this.map?.background?.href);
 
-    for (const rawSector of MAP.sectors) {
-      const sector = getSectorById(rawSector.id) || rawSector;
+    for (const rawSector of this.map?.sectors ?? []) {
+      const sector = this._sectorById(rawSector.id) || rawSector;
       const polygon = createSvgEl('polygon');
       polygon.dataset.sectorId = sector.id;
       polygon.setAttribute('points', toPointsString(sector.polygon || []));
@@ -411,8 +436,8 @@ export class SectorMapView {
   }
 
   _buildOverlays(labelLayer, pinLayer) {
-    for (const rawSector of MAP.sectors) {
-      const sector = getSectorById(rawSector.id) || rawSector;
+    for (const rawSector of this.map?.sectors ?? []) {
+      const sector = this._sectorById(rawSector.id) || rawSector;
       const labelPoint = labelPointOf(sector);
       const group = createSvgEl('g');
       group.dataset.sectorId = sector.id;
@@ -478,10 +503,10 @@ export class SectorMapView {
     this.selectedSectorId = state.selectedSectorId ?? this.selectedSectorId;
     this.hoveredSectorId = state.hoveredSectorId ?? this.hoveredSectorId;
     if ('selectedUnitId' in state) this.selectedUnitId = state.selectedUnitId;
-    const rasterBacked = Boolean(MAP.background?.href);
+    const rasterBacked = Boolean(this.map?.background?.href);
 
-    for (const rawSector of MAP.sectors) {
-      const sector = state.sectorsById?.[rawSector.id] ?? getSectorById(rawSector.id) ?? rawSector;
+    for (const rawSector of this.map?.sectors ?? []) {
+      const sector = state.sectorsById?.[rawSector.id] ?? this._sectorById(rawSector.id) ?? rawSector;
       const polygon = this.sectorElements.get(sector.id);
       const labelGroup = this.labelElements.get(sector.id);
       const pin = this.pinElements.get(sector.id);
@@ -542,7 +567,7 @@ export class SectorMapView {
     const sectorsById = state.sectorsById ?? {};
 
     for (const anchor of anchors) {
-      const sector = sectorsById[anchor.sectorId] ?? getSectorById(anchor.sectorId);
+      const sector = sectorsById[anchor.sectorId] ?? this._sectorById(anchor.sectorId);
       if (!sector) continue;
       const center = centerOf(sector);
 
@@ -589,7 +614,7 @@ export class SectorMapView {
       const live = (units || []).filter((u) => u && u.status !== 'dead');
       if (live.length === 0) continue;
 
-      const sector = sectorsById[sectorId] ?? getSectorById(sectorId);
+      const sector = sectorsById[sectorId] ?? this._sectorById(sectorId);
       const anchor = labelPointOf(sector);
 
       const tokenW = 46;

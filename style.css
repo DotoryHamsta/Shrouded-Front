@@ -148,6 +148,67 @@ body{
   gap:8px;
 }
 
+.sf-map-picker{
+  margin-top:16px;
+}
+
+.sf-map-picker-title{
+  margin-bottom:8px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+
+.sf-map-picker-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.sf-map-choice{
+  width:100%;
+  border:1px solid rgba(48,65,85,.82);
+  border-radius:8px;
+  padding:10px;
+  background:#111923;
+  color:var(--text);
+  text-align:left;
+  cursor:pointer;
+}
+
+.sf-map-choice:hover{
+  border-color:rgba(143,191,255,.72);
+}
+
+.sf-map-choice.active{
+  border-color:rgba(143,191,255,.95);
+  background:#1d2531;
+}
+
+.sf-map-choice strong,
+.sf-map-choice span,
+.sf-map-choice small{
+  display:block;
+}
+
+.sf-map-choice strong{
+  font-size:13px;
+}
+
+.sf-map-choice span{
+  margin-top:4px;
+  color:#c8d6e8;
+  font-size:12px;
+  line-height:1.35;
+}
+
+.sf-map-choice small{
+  margin-top:6px;
+  color:#9ee6b6;
+  font-size:11px;
+  font-weight:800;
+}
+
 .sf-setup-workspace{
   min-width:0;
   border:1px solid var(--line);
