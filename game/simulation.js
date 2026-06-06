@@ -119,13 +119,31 @@ export class Simulation {
   }
 
   _deriveSupplyNodes() {
-    this.defaultSupplySectorIds = [...this.sectors.values()]
-      .filter((sector) => sector.control === 'visible' || sector.owner === 'player' || sector.reportSummary === '아군 보급 거점')
-      .map((sector) => sector.id);
+    const ids = new Set(
+      this.commAnchors
+        .map((anchor) => anchor.sectorId)
+        .filter((id) => this.sectors.has(id))
+    );
+
+    for (const sector of this.sectors.values()) {
+      if (sector.owner === 'player' || sector.reportSummary === '아군 보급 거점') {
+        ids.add(sector.id);
+      }
+    }
+
+    this.defaultSupplySectorIds = [...ids];
 
     if (this.defaultSupplySectorIds.length === 0) {
       const first = [...this.sectors.keys()][0];
       if (first) this.defaultSupplySectorIds.push(first);
+    }
+
+    for (const sectorId of this.defaultSupplySectorIds) {
+      const sector = this.getSector(sectorId);
+      if (!sector) continue;
+      sector.setOwner('player');
+      sector.setControl('visible');
+      if (!sector.enemySummary) sector.setReportSummary('아군 보급 거점');
     }
   }
 
@@ -235,7 +253,8 @@ export class Simulation {
       units: this.listUnits().map((u) => u.toJSON()),
       reports: this.listReports().map((r) => r.toJSON()),
       operations: this.listOperations().map((op) => clonePlainObject(op)),
-      commAnchors: this.commAnchors.map((a) => ({ ...a }))
+      commAnchors: this.commAnchors.map((a) => ({ ...a })),
+      supplySectorIds: [...this.defaultSupplySectorIds]
     };
   }
 
@@ -270,17 +289,25 @@ export class Simulation {
 
     if (!available.length) return null;
 
-    const fromIndex = [...this.sectors.keys()].indexOf(fromSectorId);
-    if (fromIndex < 0) return available[0] ?? null;
+    if (!fromSectorId || !this.sectors.has(fromSectorId)) return available[0] ?? null;
+    if (available.includes(fromSectorId)) return fromSectorId;
 
+    const dist = this._hopDistanceFrom([fromSectorId]);
     let best = null;
     for (const sectorId of available) {
-      const idx = [...this.sectors.keys()].indexOf(sectorId);
-      if (idx < 0) continue;
-      const dist = Math.abs(idx - fromIndex);
-      if (!best || dist < best.dist) best = { sectorId, dist };
+      const hops = dist.get(sectorId);
+      if (hops === undefined) continue;
+      if (!best || hops < best.hops) best = { sectorId, hops };
     }
     return best?.sectorId ?? available[0] ?? null;
+  }
+
+  nearestSupplySectorId(fromSectorId) {
+    return this._nearestSupplySectorId(fromSectorId);
+  }
+
+  _isSupplySector(sectorId) {
+    return this.defaultSupplySectorIds.includes(sectorId);
   }
 
   // Breadth-first search over the sector adjacency graph (sector.neighbors).
@@ -485,47 +512,88 @@ export class Simulation {
   }
 
   _drainFood(unit, sector) {
+    const moving = Boolean(unit.targetSectorId && unit.sectorId !== unit.targetSectorId);
+    const reconning = unit.type === UNIT_TYPES.RECON && String(unit.command ?? '').includes('정찰');
+    const returning = unit.status === UNIT_STATUS.RETURNING || String(unit.command ?? '').includes('복귀');
+    const engaged = unit.status === UNIT_STATUS.ENGAGED || unit.isInCombat;
+    if (!moving && !reconning && !returning && !engaged) return;
+
     const terrainCost = this._sectorTerrainCost(sector);
     const baseDrain = unit.type === UNIT_TYPES.ARTILLERY ? 0.12 : unit.type === UNIT_TYPES.RECON ? 0.10 : 0.08;
-    const drain = baseDrain * terrainCost;
+    const operationCost = (moving ? 1.1 : 0) + (reconning ? 0.65 : 0) + (returning ? 0.45 : 0) + (engaged ? 1.4 : 0);
+    const drain = baseDrain * terrainCost * Math.max(0.45, operationCost);
     unit.applyFoodDrain(drain);
 
     if (unit.food <= 0) {
       unit.setStatus(UNIT_STATUS.EXHAUSTED);
-    } else if (unit.food <= Math.ceil(unit.maxFood * 0.3)) {
+    } else if (unit.food <= Math.ceil(unit.maxFood * 0.3) && unit.status === UNIT_STATUS.ACTIVE) {
       unit.setStatus(UNIT_STATUS.HUNGRY);
     } else if (unit.status === UNIT_STATUS.HUNGRY) {
       unit.setStatus(UNIT_STATUS.ACTIVE);
     }
   }
 
-  _handleExhaustion(unit) {
+  _completeResupply(unit) {
     if (!unit || !unit.isAlive) return;
-    const fallback = this._nearestSupplySectorId(unit.sectorId) ?? unit.originSectorId ?? unit.sectorId;
-    if (fallback && unit.sectorId !== fallback) {
-      unit.startRetreat();
-      this._moveUnitTowards(unit, fallback);
-      return;
-    }
+    const sector = this.getSector(unit.sectorId);
+    const shouldReport = unit.status === UNIT_STATUS.RETURNING
+      || unit.status === UNIT_STATUS.EXHAUSTED
+      || unit.status === UNIT_STATUS.HUNGRY
+      || Boolean(unit.meta?.returnTargetSectorId);
 
-    if (unit.sectorId === fallback) {
-      unit.restoreFood(4);
-      if (unit.type === UNIT_TYPES.ARTILLERY) unit.refillAmmo();
-      unit.setStatus(UNIT_STATUS.ACTIVE);
-      unit.stopRetreat();
+    unit.setFood(unit.maxFood);
+    if (unit.type === UNIT_TYPES.ARTILLERY) unit.refillAmmo();
+    unit.stopRetreat();
+    unit.setStatus(UNIT_STATUS.ACTIVE);
+    unit.setCommand('대기');
+    unit.setTargetSector(null);
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.returnTargetSectorId = null;
+
+    if (shouldReport) {
       this.addReport(new Report({
         time: this.time,
         source: 'HQ',
         sectorId: unit.sectorId,
-        sectorCode: this.getSector(unit.sectorId)?.code ?? null,
+        sectorCode: sector?.code ?? null,
         kind: REPORT_KINDS.SUPPLY,
         classTag: REPORT_CLASS.C,
-        summary: '복귀 완료',
-        body: `${unit.name}\n보급 거점 도착 후 재편성`,
-        tags: ['supply', 'return'],
+        summary: '보급 완료',
+        body: `${unit.name}\n${sector?.code ?? unit.sectorId}에서 식량 및 탄약 재보급`,
+        tags: ['supply', 'resupply'],
         meta: { unitId: unit.id }
       }));
     }
+  }
+
+  _handleSupplyReturn(unit) {
+    if (!unit || !unit.isAlive) return false;
+    const fallback = unit.meta?.returnTargetSectorId
+      ?? this._nearestSupplySectorId(unit.sectorId)
+      ?? unit.originSectorId
+      ?? unit.sectorId;
+
+    if (this._isSupplySector(unit.sectorId) && unit.sectorId === fallback) {
+      this._completeResupply(unit);
+      return true;
+    }
+
+    if (fallback && unit.sectorId !== fallback) {
+      if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+      unit.meta.returnTargetSectorId = fallback;
+      unit.setTargetSector(fallback);
+      unit.setCommand('복귀');
+      unit.startRetreat();
+      this._moveUnitTowards(unit, fallback);
+      return true;
+    }
+
+    if (unit.sectorId === fallback) {
+      this._completeResupply(unit);
+      return true;
+    }
+
+    return false;
   }
 
   _tickRecon(unit, sector) {
@@ -720,13 +788,33 @@ export class Simulation {
     const sector = this.getSector(unit.sectorId);
     if (!sector) return;
 
+    if (this._isSupplySector(unit.sectorId) && unit.food < unit.maxFood && !unit.targetSectorId) {
+      this._completeResupply(unit);
+    }
+
     if (!unit.meta?.ignoreSupply) {
       this._drainFood(unit, sector);
     }
 
     if (unit.isExhausted) {
       unit.setStatus(UNIT_STATUS.EXHAUSTED);
-      this._handleExhaustion(unit);
+      this._handleSupplyReturn(unit);
+      return;
+    }
+
+    if (unit.status === UNIT_STATUS.RETURNING || String(unit.command ?? '').includes('복귀')) {
+      this._handleSupplyReturn(unit);
+      return;
+    }
+
+    if (unit.targetSectorId && unit.sectorId !== unit.targetSectorId) {
+      this._moveUnitTowards(unit, unit.targetSectorId);
+      return;
+    }
+
+    if (String(unit.command ?? '').includes('이동') && unit.targetSectorId === unit.sectorId) {
+      unit.setTargetSector(null);
+      unit.setCommand('대기');
       return;
     }
 
@@ -897,6 +985,47 @@ export class Simulation {
     return orderRecord;
   }
 
+  issueMoveOrder(unitId, targetSectorId) {
+    const unit = this.getUnit(unitId);
+    if (!unit || !unit.isAlive) return null;
+    if (!unit.commConnected) return { blocked: 'disconnected', unitId };
+
+    const currentSector = this.getSector(unit.sectorId);
+    const validTargets = [unit.sectorId, ...(currentSector?.neighbors ?? [])];
+    if (!validTargets.includes(targetSectorId)) return null;
+
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.reconState = null;
+    unit.meta.returnTargetSectorId = null;
+
+    unit.stopRetreat();
+    unit.setStatus(unit.food <= Math.ceil(unit.maxFood * 0.3) ? UNIT_STATUS.HUNGRY : UNIT_STATUS.ACTIVE);
+    unit.setCommand(targetSectorId === unit.sectorId ? '대기' : '이동');
+    if (targetSectorId === unit.sectorId) unit.setTargetSector(null);
+
+    return this.issueOrder(unitId, targetSectorId === unit.sectorId ? '대기' : '이동', {
+      targetSectorId: targetSectorId === unit.sectorId ? null : targetSectorId
+    });
+  }
+
+  issueReturnOrder(unitId) {
+    const unit = this.getUnit(unitId);
+    if (!unit || !unit.isAlive) return null;
+    if (!unit.commConnected) return { blocked: 'disconnected', unitId };
+
+    const targetSectorId = this._nearestSupplySectorId(unit.sectorId);
+    if (!targetSectorId) return null;
+
+    if (!unit.meta || typeof unit.meta !== 'object') unit.meta = {};
+    unit.meta.reconState = null;
+    unit.meta.returnTargetSectorId = targetSectorId;
+    unit.setCommand('복귀');
+    unit.setTargetSector(targetSectorId);
+    unit.startRetreat();
+
+    return this.issueOrder(unitId, '복귀', { targetSectorId, note: '가장 가까운 보급 거점' });
+  }
+
   issueReconOrder(unitId, targetSectorId) {
     const unit = this.getUnit(unitId);
     if (!unit || !unit.isAlive) return null;
@@ -957,8 +1086,7 @@ export function createDefaultSimulation() {
     name,
     sectorId: startSector,
     level,
-    command: '대기',
-    meta: { ignoreSupply: true }
+    command: '대기'
   });
 
   return new Simulation({

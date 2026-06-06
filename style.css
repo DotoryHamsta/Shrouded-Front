@@ -572,6 +572,188 @@ body{
   color:var(--muted);
 }
 
+/* ---------- UNIT COMMAND WINDOW ---------- */
+
+.sf-unit-command-modal{
+  position:fixed;
+  inset:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(3,6,10,.58);
+}
+
+.sf-unit-command-card{
+  width:min(520px,calc(100vw - 32px));
+  max-height:min(760px,calc(100dvh - 32px));
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid rgba(96,124,160,.92);
+  border-radius:8px;
+  background:#151b24;
+  box-shadow:0 18px 48px rgba(0,0,0,.48);
+}
+
+.sf-unit-command-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:14px;
+  border-bottom:1px solid var(--line);
+  background:#182131;
+}
+
+.sf-unit-command-title{
+  font-size:16px;
+  font-weight:800;
+}
+
+.sf-unit-command-subtitle{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.sf-unit-command-close{
+  padding:7px 10px;
+  border-radius:8px;
+}
+
+.sf-unit-command-body{
+  overflow:auto;
+  padding:14px;
+}
+
+.sf-command-status-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:8px;
+}
+
+.sf-command-status-grid > div{
+  min-width:0;
+  padding:9px;
+  border:1px solid rgba(48,65,85,.72);
+  border-radius:6px;
+  background:#111923;
+}
+
+.sf-command-status-grid span{
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+}
+
+.sf-command-status-grid strong{
+  display:block;
+  margin-top:3px;
+  overflow:hidden;
+  color:var(--text);
+  font-size:13px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.sf-command-bars{
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.sf-command-bar-row{
+  display:grid;
+  grid-template-columns:42px 1fr 34px;
+  align-items:center;
+  gap:8px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.sf-command-bar-row b{
+  color:var(--text);
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+.sf-command-bar{
+  height:8px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(0,0,0,.38);
+}
+
+.sf-command-bar i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#6fb0ff;
+}
+
+.sf-command-bar.food i{
+  background:#8fd49a;
+}
+
+.sf-command-section{
+  margin-top:14px;
+}
+
+.sf-command-section-title{
+  margin-bottom:7px;
+  color:#dce8f7;
+  font-size:13px;
+  font-weight:800;
+}
+
+.sf-command-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+
+.sf-command-btn{
+  min-height:38px;
+  padding:8px 10px;
+  border:1px solid rgba(96,124,160,.86);
+  border-radius:6px;
+  background:#1d2531;
+  color:var(--text);
+  font-weight:700;
+  text-align:left;
+  cursor:pointer;
+}
+
+.sf-command-btn:hover{
+  border-color:var(--accent);
+  background:#263244;
+}
+
+.sf-command-btn.warn{
+  border-color:rgba(255,196,87,.65);
+  color:#ffd27a;
+}
+
+.sf-command-btn:disabled{
+  cursor:not-allowed;
+  opacity:.48;
+}
+
+.sf-command-lock,
+.sf-command-notice{
+  margin-top:12px;
+  padding:9px 10px;
+  border:1px solid rgba(255,160,120,.35);
+  border-radius:6px;
+  color:#ffa078;
+  background:rgba(255,120,80,.08);
+  font-size:12px;
+  font-weight:700;
+}
+
 .sf-recon-list{
   display:flex;
   flex-direction:column;
@@ -631,6 +813,11 @@ body{
   }
 
   .sf-ops-grid{
+    grid-template-columns:1fr;
+  }
+
+  .sf-command-status-grid,
+  .sf-command-grid{
     grid-template-columns:1fr;
   }
 

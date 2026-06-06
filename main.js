@@ -1,5 +1,6 @@
-import { createDefaultSimulation } from './game/simulation.js?v=27';
+import { createDefaultSimulation } from './game/simulation.js?v=28';
 import { formatTime } from './game/report.js?v=27';
+import { codeForSector } from './data/map.js?v=27';
 import { createMapView } from './ui/map.js?v=28';
 import { createDetailPanel } from './ui/details.js?v=27';
 import { createOperationsBoard } from './ui/operations.js?v=27';
@@ -63,6 +64,19 @@ root.innerHTML = `
         <div class="modalBody" id="operationsMount"></div>
       </div>
     </div>
+
+    <div class="sf-unit-command-modal hidden" id="unitCommandModal" aria-hidden="true">
+      <div class="sf-unit-command-card" role="dialog" aria-modal="true" aria-labelledby="unitCommandTitle">
+        <div class="sf-unit-command-head">
+          <div>
+            <div class="sf-unit-command-title" id="unitCommandTitle">유닛 명령</div>
+            <div class="sf-unit-command-subtitle" id="unitCommandSubtitle"></div>
+          </div>
+          <button class="btn sf-unit-command-close" id="closeUnitCommandButton" type="button">닫기</button>
+        </div>
+        <div class="sf-unit-command-body" id="unitCommandMount"></div>
+      </div>
+    </div>
   </div>
 `;
 
@@ -73,6 +87,8 @@ let selectedSectorId = state.units.find((unit) => unit.name === 'Alpha Recon')?.
   ?? null;
 let hoveredSectorId = null;
 let selectedUnitId = null;
+let unitCommandOpen = false;
+let unitCommandNotice = '';
 let panelView = 'sector';
 let lastFrameTime = performance.now();
 let tickAccumulator = 0;
@@ -82,14 +98,27 @@ const detailMount = document.getElementById('detailMount');
 const rosterMount = document.getElementById('rosterMount');
 const operationsMount = document.getElementById('operationsMount');
 const operationsModal = document.getElementById('operationsModal');
+const unitCommandModal = document.getElementById('unitCommandModal');
+const unitCommandMount = document.getElementById('unitCommandMount');
+const unitCommandSubtitle = document.getElementById('unitCommandSubtitle');
 const pauseButton = document.getElementById('pauseButton');
 const speedButtons = [...document.querySelectorAll('.speedBtn')];
 const operationsButton = document.getElementById('operationsButton');
 const closeOperationsButton = document.getElementById('closeOperationsButton');
+const closeUnitCommandButton = document.getElementById('closeUnitCommandButton');
 const timeReadout = document.getElementById('timeReadout');
 const mapStatus = document.getElementById('mapStatus');
 const alertStatus = document.getElementById('alertStatus');
 const panelTabs = [...document.querySelectorAll('.sf-tab')];
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
 
 function buildSectorUnits(units = []) {
   return units.reduce((acc, unit) => {
@@ -128,12 +157,7 @@ function isOperationsOpen() {
 
 const detailPanel = createDetailPanel({
   mount: detailMount,
-  getState: () => state,
-  onIssueRecon: (unitId, targetSectorId) => {
-    simulation.issueReconOrder(unitId, targetSectorId);
-    state = simulation.getState();
-    renderAll();
-  }
+  getState: () => state
 });
 
 const operationsBoard = createOperationsBoard({
@@ -144,7 +168,7 @@ const operationsBoard = createOperationsBoard({
 const unitRoster = createUnitRoster({
   mount: rosterMount,
   getState: () => state,
-  onSelect: (unitId) => selectUnit(unitId)
+  onSelect: (unitId) => selectUnit(unitId, { openCommand: true, showUnitTab: true })
 });
 
 const mapView = createMapView({
@@ -166,16 +190,17 @@ const mapView = createMapView({
     selectedUnitId = null;
     renderAll();
   },
-  onUnitSelect: (unit) => selectUnit(unit.id),
+  onUnitSelect: (unit) => selectUnit(unit.id, { openCommand: true }),
   onOpenOperations: openOperations
 });
 
-function selectUnit(unitId) {
+function selectUnit(unitId, { openCommand = false, showUnitTab = false } = {}) {
   const unit = state.units.find((u) => u.id === unitId);
   if (!unit) return;
   selectedUnitId = unitId;
   if (unit.sectorId) selectedSectorId = unit.sectorId;
-  setPanelView('unit');
+  if (showUnitTab) setPanelView('unit');
+  if (openCommand) openUnitCommand();
   renderAll();
 }
 
@@ -210,6 +235,188 @@ function openOperations() {
 function closeOperations() {
   operationsModal.classList.add('hidden');
   operationsModal.setAttribute('aria-hidden', 'true');
+}
+
+function getSelectedUnit() {
+  return state.units.find((unit) => unit.id === selectedUnitId) ?? null;
+}
+
+function sectorById(sectorId) {
+  return state.sectors.find((sector) => sector.id === sectorId) ?? null;
+}
+
+function commandButton({ action, sectorId = '', label, disabled = false, tone = '' }) {
+  return `
+    <button
+      class="sf-command-btn ${escapeHtml(tone)}"
+      type="button"
+      data-action="${escapeHtml(action)}"
+      ${sectorId ? `data-sector-id="${escapeHtml(sectorId)}"` : ''}
+      ${disabled ? 'disabled' : ''}
+    >${escapeHtml(label)}</button>
+  `;
+}
+
+function openUnitCommand() {
+  if (!selectedUnitId) return;
+  unitCommandOpen = true;
+  unitCommandModal.classList.remove('hidden');
+  unitCommandModal.setAttribute('aria-hidden', 'false');
+  renderUnitCommand();
+}
+
+function closeUnitCommand() {
+  unitCommandOpen = false;
+  unitCommandNotice = '';
+  unitCommandModal.classList.add('hidden');
+  unitCommandModal.setAttribute('aria-hidden', 'true');
+}
+
+function renderUnitCommand() {
+  if (!unitCommandOpen) return;
+
+  const unit = getSelectedUnit();
+  if (!unit || unit.status === 'dead') {
+    closeUnitCommand();
+    return;
+  }
+
+  const currentSector = sectorById(unit.sectorId);
+  const neighbors = (currentSector?.neighbors ?? []).map(sectorById).filter(Boolean);
+  const disconnected = unit.commConnected === false;
+  const returning = unit.status === 'returning' || unit.status === 'exhausted' || String(unit.command ?? '').includes('복귀');
+  const moveDisabled = disconnected || returning;
+  const supplyIds = Array.isArray(state.supplySectorIds) ? state.supplySectorIds : [];
+  const nearestSupplyId = simulation.nearestSupplySectorId(unit.sectorId);
+  const atSupply = supplyIds.includes(unit.sectorId);
+  const foodPct = Math.max(0, Math.min(100, (unit.food / Math.max(1, unit.maxFood ?? unit.food ?? 1)) * 100));
+  const targetText = unit.targetSectorId ? codeForSector(unit.targetSectorId) : '-';
+  const notice = unitCommandNotice
+    ? `<div class="sf-command-notice">${escapeHtml(unitCommandNotice)}</div>`
+    : '';
+
+  unitCommandSubtitle.textContent = `${unit.name || unit.label || unit.id} · ${codeForSector(unit.sectorId)}`;
+
+  const moveButtons = [
+    commandButton({
+      action: 'move',
+      sectorId: unit.sectorId,
+      label: '대기',
+      disabled: disconnected
+    }),
+    ...neighbors.map((sector) => commandButton({
+      action: 'move',
+      sectorId: sector.id,
+      label: `${sector.code || sector.id} 이동`,
+      disabled: moveDisabled
+    }))
+  ].join('');
+
+  const reconButtons = unit.type === 'recon'
+    ? `
+      <div class="sf-command-section">
+        <div class="sf-command-section-title">정찰</div>
+        <div class="sf-command-grid">
+          ${neighbors.map((sector) => commandButton({
+            action: 'recon',
+            sectorId: sector.id,
+            label: `${sector.code || sector.id} 정찰`,
+            disabled: moveDisabled
+          })).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  const returnButton = commandButton({
+    action: 'return',
+    sectorId: nearestSupplyId,
+    label: atSupply ? '보급 거점 대기' : `${codeForSector(nearestSupplyId)} 복귀`,
+    disabled: disconnected || atSupply || !nearestSupplyId,
+    tone: 'warn'
+  });
+
+  const lockText = disconnected
+    ? '<div class="sf-command-lock">통신 두절 — 신규 명령 불가</div>'
+    : returning
+      ? '<div class="sf-command-lock">보급 복귀 중 — 새 이동 명령 보류</div>'
+      : '';
+
+  unitCommandMount.innerHTML = `
+    <div class="sf-command-status-grid">
+      <div>
+        <span>위치</span>
+        <strong>${escapeHtml(currentSector?.code || unit.sectorId || '-')}</strong>
+      </div>
+      <div>
+        <span>명령</span>
+        <strong>${escapeHtml(unit.command || '대기')}</strong>
+      </div>
+      <div>
+        <span>목표</span>
+        <strong>${escapeHtml(targetText)}</strong>
+      </div>
+      <div>
+        <span>통신</span>
+        <strong>${disconnected ? '두절' : '연결'}</strong>
+      </div>
+    </div>
+
+    <div class="sf-command-bars">
+      <div class="sf-command-bar-row">
+        <span>HP</span>
+        <div class="sf-command-bar"><i style="width:${Math.max(0, Math.min(100, (unit.health / Math.max(1, unit.maxHealth ?? 100)) * 100))}%"></i></div>
+        <b>${Math.round(unit.health ?? 0)}</b>
+      </div>
+      <div class="sf-command-bar-row">
+        <span>식량</span>
+        <div class="sf-command-bar food"><i style="width:${foodPct}%"></i></div>
+        <b>${Math.round(unit.food ?? 0)}</b>
+      </div>
+    </div>
+
+    ${lockText}
+    ${notice}
+
+    <div class="sf-command-section">
+      <div class="sf-command-section-title">이동</div>
+      <div class="sf-command-grid">${moveButtons}</div>
+    </div>
+
+    ${reconButtons}
+
+    <div class="sf-command-section">
+      <div class="sf-command-section-title">보급</div>
+      <div class="sf-command-grid">${returnButton}</div>
+    </div>
+  `;
+}
+
+function handleUnitCommandAction(event) {
+  const button = event.target.closest('[data-action]');
+  if (!button || button.disabled) return;
+
+  const unit = getSelectedUnit();
+  if (!unit) return;
+
+  const action = button.dataset.action;
+  const sectorId = button.dataset.sectorId || null;
+  let result = null;
+
+  if (action === 'move' && sectorId) {
+    result = simulation.issueMoveOrder(unit.id, sectorId);
+  } else if (action === 'recon' && sectorId) {
+    result = simulation.issueReconOrder(unit.id, sectorId);
+  } else if (action === 'return') {
+    result = simulation.issueReturnOrder(unit.id);
+  }
+
+  unitCommandNotice = result?.blocked === 'disconnected'
+    ? '통신 두절로 명령을 전달하지 못했다.'
+    : '';
+
+  state = simulation.getState();
+  renderAll();
 }
 
 function renderHeader() {
@@ -247,6 +454,10 @@ function renderAll() {
   if (isOperationsOpen()) {
     operationsBoard.render();
   }
+
+  if (unitCommandOpen) {
+    renderUnitCommand();
+  }
 }
 
 function frame(now) {
@@ -277,6 +488,11 @@ closeOperationsButton.addEventListener('click', closeOperations);
 operationsModal.addEventListener('click', (event) => {
   if (event.target === operationsModal) closeOperations();
 });
+closeUnitCommandButton.addEventListener('click', closeUnitCommand);
+unitCommandModal.addEventListener('click', (event) => {
+  if (event.target === unitCommandModal) closeUnitCommand();
+});
+unitCommandMount.addEventListener('click', handleUnitCommandAction);
 
 for (const button of speedButtons) {
   button.addEventListener('click', () => setSpeed(Number(button.dataset.speed)));
