@@ -84,6 +84,93 @@ function labelPointOf(sector) {
   return centerOf(sector);
 }
 
+function pointInPolygon(point, points = []) {
+  if (!point || points.length < 3) return false;
+
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const [xi, yi] = points[i];
+    const [xj, yj] = points[j];
+    const crosses = ((yi > point.y) !== (yj > point.y))
+      && (point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi);
+    if (crosses) inside = !inside;
+  }
+
+  return inside;
+}
+
+function tokenBodyFits(point, points = [], w = 0, h = 0) {
+  if (points.length < 3) return true;
+
+  const halfW = w / 2;
+  const halfH = h / 2;
+  const checks = [
+    point,
+    { x: point.x - halfW, y: point.y - halfH },
+    { x: point.x + halfW, y: point.y - halfH },
+    { x: point.x - halfW, y: point.y + halfH },
+    { x: point.x + halfW, y: point.y + halfH }
+  ];
+
+  return checks.every((item) => pointInPolygon(item, points));
+}
+
+function distance(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function tooCloseToUsed(point, used = [], minDistance = 0) {
+  return used.some((item) => distance(point, item) < minDistance);
+}
+
+function desiredTokenPoint(anchor, index, count, tokenW, tokenH, gap) {
+  const columns = Math.min(3, Math.max(1, count));
+  const row = Math.floor(index / columns);
+  const col = index % columns;
+  const rowCount = Math.min(columns, count - row * columns);
+  const x = anchor.x + (col - (rowCount - 1) / 2) * (tokenW + gap);
+  const y = anchor.y + 38 + row * (tokenH + 26);
+  return { x, y };
+}
+
+function candidateTokenPoints(anchor, desired, tokenW, tokenH, gap) {
+  const candidates = [desired];
+  const xSteps = [0, -(tokenW + gap), tokenW + gap, -tokenW / 2, tokenW / 2, -(tokenW + gap) * 1.5, (tokenW + gap) * 1.5];
+  const ySteps = [38, 18, 0, -24, -44, 58, 78, -64];
+
+  for (const y of ySteps) {
+    for (const x of xSteps) {
+      candidates.push({ x: anchor.x + x, y: anchor.y + y });
+    }
+  }
+
+  return candidates;
+}
+
+function tokenPointOf(sector, desired, used, tokenW, tokenH, gap) {
+  const points = Array.isArray(sector?.polygon) ? sector.polygon : [];
+  const anchor = labelPointOf(sector);
+  const candidates = candidateTokenPoints(anchor, desired, tokenW, tokenH, gap)
+    .sort((a, b) => distance(a, desired) - distance(b, desired));
+  const minDistance = tokenW + gap * 0.5;
+
+  for (const candidate of candidates) {
+    if (!tokenBodyFits(candidate, points, tokenW, tokenH)) continue;
+    if (tooCloseToUsed(candidate, used, minDistance)) continue;
+    return candidate;
+  }
+
+  for (const candidate of candidates) {
+    if (pointInPolygon(candidate, points) && !tooCloseToUsed(candidate, used, minDistance * 0.7)) {
+      return candidate;
+    }
+  }
+
+  return tokenBodyFits(anchor, points, tokenW, tokenH) ? anchor : desired;
+}
+
 function getStatusText(sector) {
   if (sector.alert || sector.alertLabel || sector.enemySummary) return '보고 있음';
   if (sector.reconProgress >= 80) return '보고 확보';
@@ -454,18 +541,18 @@ export class SectorMapView {
       if (live.length === 0) continue;
 
       const sector = sectorsById[sectorId] ?? getSectorById(sectorId);
-      const center = centerOf(sector);
+      const anchor = labelPointOf(sector);
 
       const tokenW = 46;
       const tokenH = 30;
       const gap = 10;
-      const totalW = live.length * tokenW + (live.length - 1) * gap;
-      const startX = center.x - totalW / 2 + tokenW / 2;
-      const baseY = center.y + 38;
+      const used = [];
 
       live.forEach((unit, i) => {
-        const px = startX + i * (tokenW + gap);
-        this.unitLayer.appendChild(this._buildToken(unit, px, baseY, tokenW, tokenH));
+        const desired = desiredTokenPoint(anchor, i, live.length, tokenW, tokenH, gap);
+        const point = tokenPointOf(sector, desired, used, tokenW, tokenH, gap);
+        used.push(point);
+        this.unitLayer.appendChild(this._buildToken(unit, point.x, point.y, tokenW, tokenH));
       });
     }
   }
