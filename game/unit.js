@@ -39,6 +39,30 @@ export const LEADER_TRAIT_LABELS = Object.freeze({
   [LEADER_TRAITS.CAREFUL]: '신중 지휘'
 });
 
+export const MISSION_ROLES = Object.freeze({
+  RECON: 'recon',
+  SECURITY: 'security',
+  OBSERVER: 'observer',
+  SUPPORT: 'support'
+});
+
+export const MISSION_ROLE_LABELS = Object.freeze({
+  [MISSION_ROLES.RECON]: '정찰',
+  [MISSION_ROLES.SECURITY]: '경계',
+  [MISSION_ROLES.OBSERVER]: '관측',
+  [MISSION_ROLES.SUPPORT]: '지원'
+});
+
+export const PERSONNEL_ROLE_LABELS = Object.freeze({
+  leader: '리더',
+  rifleman: '소총수',
+  scout: '정찰병',
+  signal: '통신병',
+  medic: '의무병',
+  observer: '관측병',
+  weapons: '화기병'
+});
+
 export const UNIT_TEMPLATES = Object.freeze({
   [UNIT_TYPES.RECON]: {
     label: '정찰병',
@@ -141,13 +165,47 @@ function defaultCohesion(type) {
   return 70;
 }
 
+function normalizeMissionRole(role, type) {
+  const value = String(role ?? '').trim().toLowerCase();
+  const allowed = Object.values(MISSION_ROLES);
+  if (allowed.includes(value)) return value;
+  if (type === UNIT_TYPES.RECON) return MISSION_ROLES.RECON;
+  if (type === UNIT_TYPES.ARTILLERY) return MISSION_ROLES.SUPPORT;
+  return MISSION_ROLES.SECURITY;
+}
+
+function normalizeComposition(composition = {}) {
+  const source = composition && typeof composition === 'object' ? composition : {};
+  const normalized = {};
+  for (const role of Object.keys(PERSONNEL_ROLE_LABELS)) {
+    const count = Math.max(0, Math.floor(Number(source[role] ?? 0)));
+    if (count > 0) normalized[role] = count;
+  }
+  return normalized;
+}
+
+function compositionCount(composition = {}) {
+  return Object.values(composition).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+}
+
+function echelonFromCount(count) {
+  if (count <= 5) return 'team';
+  if (count <= 12) return 'squad';
+  if (count <= 35) return 'detachment';
+  return 'company';
+}
+
 export class Unit {
   constructor({
     id = nextUnitId(),
     type = UNIT_TYPES.RECON,
     name = '',
     sectorId = null,
+    missionRole = null,
+    composition = null,
+    echelon = null,
     level = 1,
+    maxHealth = null,
     health = null,
     food = null,
     ammo = null,
@@ -173,10 +231,20 @@ export class Unit {
     this.type = normalizeType(type);
     this.template = UNIT_TEMPLATES[this.type];
     this.name = name || `${this.template.label} ${this.id}`;
+    this.missionRole = normalizeMissionRole(missionRole, this.type);
+    this.composition = normalizeComposition(composition);
+    if (compositionCount(this.composition) === 0) {
+      this.composition = {
+        leader: 1,
+        [this.type === UNIT_TYPES.RECON ? 'scout' : 'rifleman']: 4
+      };
+    }
+    this.personnelCount = compositionCount(this.composition);
+    this.echelon = echelon ?? echelonFromCount(this.personnelCount);
     this.sectorId = sectorId;
     this.originSectorId = originSectorId ?? sectorId;
     this.level = Math.max(1, Math.floor(level));
-    this.maxHealth = this.template.maxHealth;
+    this.maxHealth = clamp(maxHealth ?? this.template.maxHealth, 1, 999);
     this.health = clamp(
       health ?? this.maxHealth,
       0,
@@ -258,7 +326,11 @@ export class Unit {
   }
 
   get role() {
-    return this.template.role;
+    return MISSION_ROLE_LABELS[this.missionRole] ?? this.template.role;
+  }
+
+  get roleLabel() {
+    return this.role;
   }
 
   get maxFood() {
@@ -354,6 +426,11 @@ export class Unit {
       name: this.name,
       sectorId: this.sectorId,
       level: this.level,
+      missionRole: this.missionRole,
+      roleLabel: this.roleLabel,
+      composition: { ...this.composition },
+      personnelCount: this.personnelCount,
+      echelon: this.echelon,
       health: this.health,
       food: this.food,
       ammo: this.ammo,
@@ -657,8 +734,15 @@ export class Unit {
       role: this.role,
       sectorId: this.sectorId,
       originSectorId: this.originSectorId,
+      missionRole: this.missionRole,
+      roleLabel: this.roleLabel,
+      composition: { ...this.composition },
+      personnelCount: this.personnelCount,
+      echelon: this.echelon,
       level: this.level,
       maxHealth: this.maxHealth,
+      maxFood: this.maxFood,
+      maxAmmo: this.maxAmmo,
       health: this.health,
       food: this.food,
       ammo: this.ammo,

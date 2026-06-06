@@ -6,7 +6,7 @@
 
 import { getSectorById, codeForSector } from '../data/map.js?v=27';
 import { formatTime } from '../game/report.js?v=28';
-import { unitLabel } from '../game/unit.js?v=29';
+import { unitLabel } from '../game/unit.js?v=30';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -35,8 +35,12 @@ function formatFriendlySummary(units = []) {
   return units
     .map((unit) => {
       const name = unit.name || unitLabel(unit);
-      const label = unit.label || unitLabel(unit);
-      const count = typeof unit.count === 'number' ? `${unit.count}명` : '';
+      const label = unit.roleLabel || unit.role || unit.label || unitLabel(unit);
+      const count = typeof unit.personnelCount === 'number'
+        ? `${unit.personnelCount}명`
+        : typeof unit.count === 'number'
+          ? `${unit.count}명`
+          : '';
       const status = unit.status ? ` / ${unit.status}` : '';
       return `${name} (${label}) ${count}${status}`.trim();
     })
@@ -117,7 +121,11 @@ export class DetailPanel {
     const friendlySummary = sector.friendlySummary
       ? formatFriendlySummary(Array.isArray(sector.friendlySummary) ? sector.friendlySummary : [sector.friendlySummary])
       : (sectorUnits.length > 0
-        ? sectorUnits.map((unit) => `${escapeHtml(unit.name || unitLabel(unit))} / ${escapeHtml(unitLabel(unit))} / ${escapeHtml(unit.status || 'active')} / HP ${escapeHtml(Math.max(0, Math.round(unit.health ?? 0)))}`).join('<br>')
+        ? sectorUnits.map((unit) => {
+          const role = unit.roleLabel || unit.role || unitLabel(unit);
+          const count = Number.isFinite(unit.personnelCount) ? `${unit.personnelCount}명` : '-';
+          return `${escapeHtml(unit.name || unitLabel(unit))} / ${escapeHtml(role)} / ${escapeHtml(count)} / ${escapeHtml(unit.status || 'active')} / HP ${escapeHtml(Math.max(0, Math.round(unit.health ?? 0)))}`;
+        }).join('<br>')
         : '없음');
 
     const enemySummary = formatEnemySummary(sector.enemySummary);

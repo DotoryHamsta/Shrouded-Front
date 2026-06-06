@@ -1,10 +1,12 @@
-import { createDefaultSimulation } from './game/simulation.js?v=30';
+import { createDefaultSimulation, createSimulation } from './game/simulation.js?v=31';
 import { formatDuration, formatRations, formatTime } from './game/report.js?v=28';
 import { codeForSector } from './data/map.js?v=27';
+import { DEFAULT_COMM_ANCHORS } from './game/formation.js?v=30';
 import { createMapView } from './ui/map.js?v=31';
-import { createDetailPanel } from './ui/details.js?v=28';
-import { createOperationsBoard } from './ui/operations.js?v=29';
-import { createUnitRoster } from './ui/roster.js?v=29';
+import { createDetailPanel } from './ui/details.js?v=30';
+import { createOperationsBoard } from './ui/operations.js?v=30';
+import { createUnitRoster } from './ui/roster.js?v=30';
+import { createFormationSetup } from './ui/setup.js?v=30';
 
 const TICK_MS = 1000;
 const SPEEDS = [0.5, 1, 2, 4];
@@ -18,74 +20,79 @@ if (!root) {
 
 root.innerHTML = `
   <div id="app">
-    <header class="topbar">
-      <div class="titleBlock">
-        <h1>Shrouded Front</h1>
-        <p id="timeReadout">작전시각 D1 06:00</p>
-      </div>
-      <div class="controls">
-        <button class="btn" id="pauseButton" type="button">Pause</button>
-        <div class="speedGroup" id="speedButtons">
-          ${SPEEDS.map((speed) => `<button class="btn speedBtn" type="button" data-speed="${speed}">${speed}x</button>`).join('')}
-        </div>
-        <button class="btn primary" id="operationsButton" type="button">작전판</button>
-      </div>
-    </header>
+    <section class="sf-setup-screen" id="setupScreen"></section>
 
-    <main class="layout">
-      <section class="mapWrap">
-        <div class="mapHeader">
-          <span id="mapStatus">정찰 대기</span>
-          <span id="alertStatus">Alerts 0 · Reports 0</span>
+    <div class="sf-operation-shell hidden" id="operationShell">
+      <header class="topbar">
+        <div class="titleBlock">
+          <h1>Shrouded Front</h1>
+          <p id="timeReadout">작전시각 D1 06:00</p>
         </div>
-        <div class="mapMount" id="mainMapMount"></div>
-      </section>
-
-      <aside class="sidePanel">
-        <section class="panel">
-          <div class="sf-panel-tabs" id="panelTabs">
-            <button class="sf-tab active" type="button" data-view="sector">구역 상세</button>
-            <button class="sf-tab" type="button" data-view="unit">유닛</button>
+        <div class="controls">
+          <button class="btn" id="pauseButton" type="button">Pause</button>
+          <div class="speedGroup" id="speedButtons">
+            ${SPEEDS.map((speed) => `<button class="btn speedBtn" type="button" data-speed="${speed}">${speed}x</button>`).join('')}
           </div>
-          <div class="details" id="detailMount"></div>
-          <div class="details hidden" id="rosterMount"></div>
+          <button class="btn primary" id="operationsButton" type="button">작전판</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="mapWrap">
+          <div class="mapHeader">
+            <span id="mapStatus">작전 대기</span>
+            <span id="alertStatus">Alerts 0 · Reports 0</span>
+          </div>
+          <div class="mapMount" id="mainMapMount"></div>
         </section>
-      </aside>
-    </main>
 
-    <div class="modal hidden" id="operationsModal" aria-hidden="true">
-      <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="operationsTitle">
-        <div class="modalHeader">
-          <div>
-            <div class="sf-ops-title" id="operationsTitle">작전판</div>
-            <div class="sf-ops-subtitle" id="operationsSubtitle">전체 전장 수치</div>
+        <aside class="sidePanel">
+          <section class="panel">
+            <div class="sf-panel-tabs" id="panelTabs">
+              <button class="sf-tab active" type="button" data-view="sector">구역 상세</button>
+              <button class="sf-tab" type="button" data-view="unit">유닛</button>
+            </div>
+            <div class="details" id="detailMount"></div>
+            <div class="details hidden" id="rosterMount"></div>
+          </section>
+        </aside>
+      </main>
+
+      <div class="modal hidden" id="operationsModal" aria-hidden="true">
+        <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="operationsTitle">
+          <div class="modalHeader">
+            <div>
+              <div class="sf-ops-title" id="operationsTitle">작전판</div>
+              <div class="sf-ops-subtitle" id="operationsSubtitle">전체 전장 수치</div>
+            </div>
+            <button class="btn" id="closeOperationsButton" type="button">닫기</button>
           </div>
-          <button class="btn" id="closeOperationsButton" type="button">닫기</button>
+          <div class="modalBody" id="operationsMount"></div>
         </div>
-        <div class="modalBody" id="operationsMount"></div>
       </div>
-    </div>
 
-    <div class="sf-unit-command-modal hidden" id="unitCommandModal" aria-hidden="true">
-      <div class="sf-unit-command-card" role="dialog" aria-modal="true" aria-labelledby="unitCommandTitle">
-        <div class="sf-unit-command-head">
-          <div>
-            <div class="sf-unit-command-title" id="unitCommandTitle">유닛 명령</div>
-            <div class="sf-unit-command-subtitle" id="unitCommandSubtitle"></div>
+      <div class="sf-unit-command-modal hidden" id="unitCommandModal" aria-hidden="true">
+        <div class="sf-unit-command-card" role="dialog" aria-modal="true" aria-labelledby="unitCommandTitle">
+          <div class="sf-unit-command-head">
+            <div>
+              <div class="sf-unit-command-title" id="unitCommandTitle">유닛 명령</div>
+              <div class="sf-unit-command-subtitle" id="unitCommandSubtitle"></div>
+            </div>
+            <button class="btn sf-unit-command-close" id="closeUnitCommandButton" type="button">닫기</button>
           </div>
-          <button class="btn sf-unit-command-close" id="closeUnitCommandButton" type="button">닫기</button>
+          <div class="sf-unit-command-body" id="unitCommandMount"></div>
         </div>
-        <div class="sf-unit-command-body" id="unitCommandMount"></div>
       </div>
     </div>
   </div>
 `;
 
-const simulation = createDefaultSimulation();
+let simulation = createDefaultSimulation();
 let state = simulation.getState();
-let selectedSectorId = state.units.find((unit) => unit.name === 'Alpha Recon')?.sectorId
+let selectedSectorId = state.units[0]?.sectorId
   ?? state.sectors[0]?.id
   ?? null;
+let appPhase = 'setup';
 let hoveredSectorId = null;
 let selectedUnitId = null;
 let unitCommandOpen = false;
@@ -95,6 +102,8 @@ let lastFrameTime = performance.now();
 let tickAccumulator = 0;
 
 const mainMapMount = document.getElementById('mainMapMount');
+const setupScreen = document.getElementById('setupScreen');
+const operationShell = document.getElementById('operationShell');
 const detailMount = document.getElementById('detailMount');
 const rosterMount = document.getElementById('rosterMount');
 const operationsMount = document.getElementById('operationsMount');
@@ -194,6 +203,34 @@ const mapView = createMapView({
   onUnitSelect: (unit) => selectUnit(unit.id, { openCommand: true }),
   onOpenOperations: openOperations
 });
+
+const setupFlow = createFormationSetup({
+  mount: setupScreen,
+  onStart: startOperation
+});
+
+function startOperation(units = []) {
+  simulation = createSimulation({
+    units,
+    reports: [],
+    commAnchors: DEFAULT_COMM_ANCHORS
+  });
+  state = simulation.getState();
+  selectedSectorId = state.units[0]?.sectorId ?? state.sectors[0]?.id ?? null;
+  selectedUnitId = null;
+  hoveredSectorId = null;
+  unitCommandNotice = '';
+  appPhase = 'operation';
+  tickAccumulator = 0;
+  lastFrameTime = performance.now();
+  setupScreen.classList.add('hidden');
+  operationShell.classList.remove('hidden');
+  closeOperations();
+  closeUnitCommand();
+  setPanelView('sector');
+  setSpeed(1);
+  renderAll();
+}
 
 function selectUnit(unitId, { openCommand = false, showUnitTab = false } = {}) {
   const unit = state.units.find((u) => u.id === unitId);
@@ -423,6 +460,14 @@ function renderUnitCommand() {
         <strong>${disconnected ? '두절' : '연결'}</strong>
       </div>
       <div>
+        <span>역할</span>
+        <strong>${escapeHtml(unit.roleLabel || unit.role || unit.label || '-')}</strong>
+      </div>
+      <div>
+        <span>편제</span>
+        <strong>${escapeHtml(`${unit.personnelCount ?? '-'}명 · ${unit.echelon ?? '-'}`)}</strong>
+      </div>
+      <div>
         <span>리더</span>
         <strong>${escapeHtml(unit.leader?.name ?? '임시 지휘관')}</strong>
       </div>
@@ -500,15 +545,16 @@ function handleUnitCommandAction(event) {
 function renderHeader() {
   const selected = getSelectedSector();
   const alertCount = state.sectors.filter((sector) => sector.alert || sector.enemySummary).length;
-  const reconUnit = state.units.find((unit) => unit.type === 'recon');
-  const reconProgress = reconUnit ? `${Math.round(reconUnit.reconProgress ?? 0)}%` : '0%';
+  const focusUnit = getSelectedUnit() ?? state.units.find((unit) => unit.type === 'recon') ?? state.units[0];
+  const progress = focusUnit ? `${Math.round(focusUnit.reconProgress ?? 0)}%` : '0%';
+  const unitStatus = focusUnit ? `${focusUnit.name || focusUnit.label || focusUnit.id} ${progress}` : '작전 대기';
 
   timeReadout.textContent = `작전시각 ${formatTime(state.time)}`;
   pauseButton.textContent = state.paused ? 'Resume' : 'Pause';
   pauseButton.classList.toggle('active', state.paused);
   mapStatus.textContent = selected
-    ? `${selected.code} · Alpha Recon ${reconProgress}`
-    : `Alpha Recon ${reconProgress}`;
+    ? `${selected.code} · ${unitStatus}`
+    : unitStatus;
   alertStatus.textContent = `Alerts ${alertCount} · Reports ${state.reports.length}`;
   speedButtons.forEach((button) => {
     button.classList.toggle('active', Number(button.dataset.speed) === state.speed);
@@ -542,7 +588,7 @@ function frame(now) {
   const elapsed = now - lastFrameTime;
   lastFrameTime = now;
 
-  if (!simulation.paused) {
+  if (appPhase === 'operation' && !simulation.paused) {
     tickAccumulator += elapsed * simulation.speed;
   }
 
@@ -553,7 +599,7 @@ function frame(now) {
     advanced = true;
   }
 
-  if (advanced) {
+  if (appPhase === 'operation' && advanced) {
     renderAll();
   }
 
@@ -584,6 +630,7 @@ for (const tab of panelTabs) {
 }
 
 mapView.init();
-setSpeed(1);
+simulation.setSpeed(1);
+setupFlow.render();
 renderAll();
 requestAnimationFrame(frame);

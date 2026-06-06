@@ -9,7 +9,7 @@
 // - command / mission summaries
 
 import { formatRations, formatTime } from '../game/report.js?v=28';
-import { unitLabel } from '../game/unit.js?v=29';
+import { unitLabel } from '../game/unit.js?v=30';
 import { codeForSector } from '../data/map.js?v=27';
 
 function escapeHtml(value) {
@@ -37,8 +37,10 @@ function enemyText(sector) {
 
 function unitRow(unit) {
   const label = unit.label || unitLabel(unit);
+  const role = unit.roleLabel || unit.role || label;
   const name = unit.name || label;
   const sector = codeForSector(unit.sectorId);
+  const personnel = Number.isFinite(unit.personnelCount) ? `${unit.personnelCount}명` : '-';
   const level = unit.level ?? 1;
   const health = Math.max(0, Math.round(unit.health ?? 0));
   const food = formatRations(unit.food ?? 0);
@@ -52,7 +54,8 @@ function unitRow(unit) {
   return `
     <tr>
       <td>${escapeHtml(name)}</td>
-      <td>${escapeHtml(label)}</td>
+      <td>${escapeHtml(role)}</td>
+      <td>${escapeHtml(personnel)}</td>
       <td>${escapeHtml(sector)}</td>
       <td>${escapeHtml(String(level))}</td>
       <td>${escapeHtml(String(health))}</td>
@@ -205,7 +208,8 @@ export class OperationsBoard {
                 <thead>
                   <tr>
                     <th>이름</th>
-                    <th>종류</th>
+                    <th>역할</th>
+                    <th>인원</th>
                     <th>구역</th>
                     <th>Lv</th>
                     <th>HP</th>
@@ -220,7 +224,7 @@ export class OperationsBoard {
                   </tr>
                 </thead>
                 <tbody>
-                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="13" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
+                  ${units.length > 0 ? units.map(unitRow).join('') : '<tr><td colspan="14" class="sf-empty-row">표시할 유닛이 없다</td></tr>'}
                 </tbody>
               </table>
             </div>

@@ -12,9 +12,12 @@ import {
   UNIT_TYPES,
   UNIT_STATUS,
   LEADER_TRAITS,
-  isUnitAlive,
-  unitLabel
-} from './unit.js?v=29';
+  isUnitAlive
+} from './unit.js?v=30';
+import {
+  DEFAULT_COMM_ANCHORS,
+  buildDefaultFormationUnits
+} from './formation.js?v=30';
 
 export const SIM_MINUTES_PER_TICK = 15;
 
@@ -1406,35 +1409,10 @@ export function createSimulation(options = {}) {
 }
 
 export function createDefaultSimulation() {
-  // Experimental comm scenario: a small recon force starts at Forest D (HQ)
-  // and the objective is to scout north toward Valley A. The northern Valley/
-  // Ridge sectors fall outside the 2-hop comm range of the anchors, so relays
-  // must be positioned (e.g. at Plain C) to keep the lead scout connected.
-  const startSector = 'D5'; // Forest D
-  const reconAt = (name, level, leaderName) => Unit.recon({
-    name,
-    sectorId: startSector,
-    level,
-    command: '대기',
-    leader: {
-      name: leaderName,
-      billet: '정찰조장',
-      trait: LEADER_TRAITS.SCOUT,
-      rating: level
-    }
-  });
-
   return new Simulation({
     map: MAP,
-    units: [
-      reconAt('Alpha Recon', 2, 'Sgt. Han'),
-      reconAt('Bravo Recon', 2, 'Sgt. Baek'),
-      reconAt('Charlie Recon', 1, 'Cpl. Min')
-    ],
+    units: buildDefaultFormationUnits(),
     reports: [],
-    commAnchors: [
-      { sectorId: 'D5', label: 'HQ' },
-      { sectorId: 'D3', label: '야전사령부' }
-    ]
+    commAnchors: DEFAULT_COMM_ANCHORS
   });
 }

@@ -61,6 +61,8 @@ export class UnitRoster {
       const selected = this.selectedUnitId === unit.id ? ' sf-unit-card-selected' : '';
       const sector = codeForSector(unit.sectorId);
       const maxFood = unit.meta?.maxFood ?? unit.maxFood ?? unit.food ?? 1;
+      const role = unit.roleLabel || unit.role || unitTypeLabel(unit.type);
+      const personnel = Number.isFinite(unit.personnelCount) ? `${unit.personnelCount}명` : '-';
       return `
         <div class="sf-unit-card${selected}" data-unit-id="${escapeHtml(unit.id)}">
           <div class="sf-unit-head">
@@ -68,7 +70,8 @@ export class UnitRoster {
             <span class="sf-unit-lvl">Lv${escapeHtml(unit.level ?? 1)}</span>
           </div>
           <div class="sf-unit-meta">
-            <span class="sf-unit-type">${escapeHtml(unitTypeLabel(unit.type))}</span>
+            <span class="sf-unit-type">${escapeHtml(role)}</span>
+            <span>${escapeHtml(personnel)}</span>
             <span class="sf-unit-loc">${escapeHtml(sector)}</span>
           </div>
           <div class="sf-unit-meta">

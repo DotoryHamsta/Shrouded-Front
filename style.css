@@ -42,6 +42,369 @@ body{
   overflow:hidden;
 }
 
+.sf-operation-shell{
+  height:100%;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ---------- SETUP ---------- */
+
+.sf-setup-screen{
+  min-height:100vh;
+  min-height:100dvh;
+  overflow:auto;
+  background:
+    linear-gradient(180deg,#10161d,#0f1319 38%,#131821);
+}
+
+.sf-setup-shell{
+  width:min(1180px,calc(100vw - 32px));
+  min-height:100vh;
+  min-height:100dvh;
+  margin:0 auto;
+  padding:24px 0;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+
+.sf-setup-top{
+  min-height:64px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  border-bottom:1px solid var(--line);
+}
+
+.sf-setup-top h1{
+  margin:0;
+  font-size:22px;
+}
+
+.sf-setup-top p{
+  margin:4px 0 0;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.sf-setup-status{
+  display:flex;
+  gap:8px;
+}
+
+.sf-setup-status span,
+.sf-brief-metrics span{
+  border:1px solid rgba(96,124,160,.72);
+  border-radius:6px;
+  padding:7px 10px;
+  background:#182131;
+  color:#dce8f7;
+  font-size:12px;
+  font-weight:800;
+}
+
+.sf-setup-main{
+  flex:1;
+  min-height:0;
+  display:grid;
+  grid-template-columns:300px 1fr;
+  gap:16px;
+}
+
+.sf-setup-brief{
+  align-self:start;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px;
+  background:#171d26;
+}
+
+.sf-brief-kicker{
+  color:#9ee6b6;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+
+.sf-setup-brief h2{
+  margin:8px 0;
+  font-size:22px;
+}
+
+.sf-setup-brief p{
+  margin:0;
+  color:#d7e2f1;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.sf-brief-metrics{
+  margin-top:14px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.sf-setup-workspace{
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#141a23;
+  overflow:hidden;
+}
+
+.sf-setup-tabs{
+  display:flex;
+  border-bottom:1px solid var(--line);
+  background:#111821;
+}
+
+.sf-setup-tabs button{
+  flex:1;
+  border:0;
+  border-right:1px solid var(--line);
+  padding:12px;
+  background:transparent;
+  color:var(--muted);
+  font-weight:800;
+  cursor:pointer;
+}
+
+.sf-setup-tabs button:last-child{
+  border-right:0;
+}
+
+.sf-setup-tabs button.active{
+  color:var(--text);
+  background:#1d2531;
+}
+
+.sf-pool-layout,
+.sf-builder-layout{
+  display:grid;
+  grid-template-columns:1fr 260px;
+  gap:14px;
+  padding:14px;
+}
+
+.sf-pool-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.sf-role-row,
+.sf-draft-role{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:54px;
+  border:1px solid rgba(48,65,85,.72);
+  border-radius:8px;
+  padding:10px 12px;
+  background:#171f2a;
+}
+
+.sf-role-row strong,
+.sf-draft-role span{
+  display:block;
+  font-size:13px;
+  font-weight:800;
+}
+
+.sf-role-row span{
+  display:block;
+  margin-top:2px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.sf-stepper{
+  display:grid;
+  grid-template-columns:32px 44px 32px;
+  align-items:center;
+  overflow:hidden;
+  border:1px solid rgba(96,124,160,.78);
+  border-radius:6px;
+}
+
+.sf-stepper button{
+  width:32px;
+  height:32px;
+  border:0;
+  background:#223044;
+  color:var(--text);
+  font-size:18px;
+  font-weight:800;
+  cursor:pointer;
+}
+
+.sf-stepper button:disabled{
+  cursor:not-allowed;
+  opacity:.42;
+}
+
+.sf-stepper strong{
+  text-align:center;
+  font-variant-numeric:tabular-nums;
+}
+
+.sf-pool-summary,
+.sf-reserve-panel{
+  align-self:start;
+  border:1px solid rgba(48,65,85,.82);
+  border-radius:8px;
+  padding:12px;
+  background:#111923;
+}
+
+.sf-pool-total{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:12px;
+}
+
+.sf-pool-total span,
+.sf-reserve-title{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+
+.sf-pool-total strong{
+  font-size:24px;
+}
+
+.sf-pool-total.warn strong{
+  color:#ffa078;
+}
+
+.sf-pool-meter{
+  height:8px;
+  margin-top:10px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(0,0,0,.42);
+}
+
+.sf-pool-meter i{
+  display:block;
+  height:100%;
+  background:linear-gradient(90deg,#9ee6b6,#8fbfff,#ffd27a);
+}
+
+.sf-leader-list{
+  margin-top:14px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.sf-leader-list div,
+.sf-reserve-list div{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid rgba(48,65,85,.48);
+  padding:7px 0;
+  font-size:12px;
+}
+
+.sf-leader-list strong{
+  color:var(--text);
+}
+
+.sf-leader-list span,
+.sf-reserve-list span{
+  color:var(--muted);
+}
+
+.sf-setup-next{
+  width:100%;
+  margin-top:14px;
+  border-radius:8px;
+}
+
+.sf-builder-main{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  align-items:start;
+}
+
+.sf-draft-card{
+  border:1px solid rgba(48,65,85,.82);
+  border-radius:8px;
+  padding:12px;
+  background:#171f2a;
+}
+
+.sf-draft-card.warn{
+  border-color:rgba(255,196,87,.56);
+}
+
+.sf-draft-head{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+}
+
+.sf-draft-head h3{
+  margin:0;
+  font-size:16px;
+}
+
+.sf-draft-head p{
+  margin:4px 0 0;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.sf-leader-chip{
+  min-width:120px;
+  border:1px solid rgba(158,230,182,.45);
+  border-radius:6px;
+  padding:7px 9px;
+  background:rgba(60,110,82,.16);
+  text-align:right;
+}
+
+.sf-leader-chip strong,
+.sf-leader-chip span{
+  display:block;
+}
+
+.sf-leader-chip span{
+  margin-top:2px;
+  color:#b6e8c7;
+  font-size:11px;
+}
+
+.sf-draft-roles{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+
+.sf-draft-role{
+  min-height:44px;
+  padding:7px 9px;
+}
+
+.sf-reserve-list{
+  margin:8px 0 14px;
+}
+
+.sf-reserve-list.compact{
+  margin-bottom:0;
+}
+
 /* ---------- HEADER ---------- */
 
 .topbar{
@@ -863,6 +1226,28 @@ body{
 /* ---------- MOBILE ---------- */
 
 @media (max-width:1100px){
+
+  .sf-setup-shell{
+    width:min(calc(100vw - 20px),760px);
+    padding:14px 0;
+  }
+
+  .sf-setup-top,
+  .sf-draft-head{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .sf-setup-main,
+  .sf-pool-layout,
+  .sf-builder-layout,
+  .sf-builder-main{
+    grid-template-columns:1fr;
+  }
+
+  .sf-leader-chip{
+    text-align:left;
+  }
 
   .layout{
     grid-template-columns:1fr;
